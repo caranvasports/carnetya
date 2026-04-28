@@ -39,7 +39,8 @@
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
   .input-field {
-    @apply w-full rounded-xl border border-gray-200 px-4 py-3 text-sm
+    @apply w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900
+           placeholder:text-gray-400
            focus:border-brand-500 focus:ring-2 focus:ring-brand-100 
            outline-none transition;
   }

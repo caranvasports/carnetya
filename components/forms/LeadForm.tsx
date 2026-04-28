@@ -95,7 +95,7 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
   const experienciaValue = watch('tiene_experiencia')
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
       {/* Progress bar */}
       <div className="h-1.5 bg-gray-100">
         <div
@@ -115,7 +115,7 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                     ? 'bg-green-500 text-white'
                     : i === step
                     ? 'bg-brand-600 text-white'
-                    : 'bg-gray-100 text-gray-400'
+                    : 'bg-gray-100 text-gray-500'
                 }`}
               >
                 {i < step ? <Check className="w-3.5 h-3.5" /> : i + 1}
@@ -135,7 +135,7 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
             <div className="space-y-4">
               <div>
                 <label className="label">Tu ciudad</label>
-                <select {...register('ciudad')} className="input-field">
+                <select {...register('ciudad')} className="input-field text-gray-900">
                   <option value="">Selecciona tu ciudad...</option>
                   {CIUDADES.map((c) => (
                     <option key={c.slug} value={c.slug}>
@@ -157,7 +157,7 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                   type="number"
                   {...register('edad')}
                   placeholder="Ej: 22"
-                  className="input-field"
+                  className="input-field text-gray-900"
                   min={14}
                   max={99}
                 />
@@ -230,7 +230,7 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                   type="text"
                   {...register('nombre')}
                   placeholder="Tu nombre"
-                  className="input-field"
+                  className="input-field text-gray-900"
                 />
                 {errors.nombre && <p className="text-red-500 text-xs mt-1">{errors.nombre.message}</p>}
               </div>
@@ -240,7 +240,7 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                   type="tel"
                   {...register('telefono')}
                   placeholder="612 345 678"
-                  className="input-field"
+                  className="input-field text-gray-900"
                 />
                 {errors.telefono && <p className="text-red-500 text-xs mt-1">{errors.telefono.message}</p>}
               </div>
@@ -250,7 +250,7 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                   type="email"
                   {...register('email')}
                   placeholder="tu@email.com"
-                  className="input-field"
+                  className="input-field text-gray-900"
                 />
                 {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
               </div>

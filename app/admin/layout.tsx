@@ -23,7 +23,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .eq('id', user.id)
     .single()
 
-  if (usuario?.role !== 'admin') redirect('/')
+  const ADMIN_EMAIL_ENV = process.env.ADMIN_EMAIL ?? 'carnetyainfo@gmail.com'
+  const isAdmin = usuario?.role === 'admin' || user.email === ADMIN_EMAIL_ENV
+  if (!isAdmin) redirect('/')
 
   return (
     <div className="flex h-screen bg-gray-950 text-white">
@@ -31,7 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
         <div className="p-5 border-b border-gray-800">
           <span className="text-lg font-bold">
-            Carnet<span className="text-cta">Fácil</span>
+            Carnet<span className="text-cta">Ya</span>
             <span className="text-xs text-gray-400 ml-2">Admin</span>
           </span>
         </div>

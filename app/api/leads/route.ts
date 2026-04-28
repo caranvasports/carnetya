@@ -39,10 +39,12 @@ function buildEmailHtml(data: {
 }
 
 async function sendEmail(subject: string, html: string) {
-  // Gmail SMTP via App Password (var: GMAIL_APP_PASSWORD)
+  // Gmail SMTP via App Password (GMAIL_APP_PASSWORD en Vercel env vars)
   if (process.env.GMAIL_APP_PASSWORD) {
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: {
         user: ADMIN_EMAIL,
         pass: process.env.GMAIL_APP_PASSWORD,
@@ -54,22 +56,26 @@ async function sendEmail(subject: string, html: string) {
       subject,
       html,
     })
+    console.log('[CarnetYa] Email enviado via Gmail a', ADMIN_EMAIL)
     return
   }
-  // Fallback: Resend
-  if (process.env.RESEND_API_KEY) {
+  // Fallback: Resend (solo si hay key real, no placeholder)
+  const resendKey = process.env.RESEND_API_KEY
+  if (resendKey && !resendKey.startsWith('re_placeholder')) {
     const { Resend } = await import('resend')
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendKey)
     await resend.emails.send({
       from: process.env.EMAIL_FROM ?? `CarnetYa <noreply@carnetya.es>`,
       to: ADMIN_EMAIL,
       subject,
       html,
     })
+    console.log('[CarnetYa] Email enviado via Resend a', ADMIN_EMAIL)
     return
   }
-  // Sin credenciales — log
-  console.log('[CarnetYa] Email (sin credenciales):', subject)
+  // Sin credenciales configuradas — log completo en Vercel/servidor
+  console.warn('[CarnetYa] ⚠️  EMAIL NO ENVIADO — Añade GMAIL_APP_PASSWORD en Vercel env vars')
+  console.log('[CarnetYa] Datos del lead:', subject)
 }
 
 const schema = z.object({
