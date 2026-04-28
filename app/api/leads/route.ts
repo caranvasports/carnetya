@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { Resend } from 'resend'
 import { createServiceClient } from '@/lib/supabase/server'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'carnetyainfo@gmail.com'
 const EMAIL_FROM = process.env.EMAIL_FROM ?? 'CarnetYa <noreply@carnetya.es>'
 
@@ -79,7 +78,7 @@ export async function POST(req: NextRequest) {
       .limit(3)
 
     if (autoescuelas && autoescuelas.length > 0) {
-      const assignments = autoescuelas.map((ae) => ({
+      const assignments = (autoescuelas as { id: string; plan: string | null }[]).map((ae) => ({
         lead_id: lead.id,
         autoescuela_id: ae.id,
         precio_lead: ae.plan === 'premium' ? 8 : 5,
@@ -98,6 +97,7 @@ export async function POST(req: NextRequest) {
 
   // Enviar email de notificación al admin
   try {
+    const resend = new Resend(process.env.RESEND_API_KEY)
     const urgenciaLabel = parsed.data.urgencia === 'rapido' ? '🔴 URGENTE' : '🟡 Normal'
     await resend.emails.send({
       from: EMAIL_FROM,

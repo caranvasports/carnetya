@@ -13,12 +13,16 @@ export default async function AdminDashboard() {
 
   const totalLeads       = leadsRes.count ?? 0
   const totalAutoescuelas = autoescuelasRes.count ?? 0
-  const assignments      = conversionesRes.data ?? []
+  type Assignment = { id: string; precio_lead: number | null; estado: string | null }
+  type LeadRow    = { id: string; estado: string | null; created_at: string }
+  type AutoRow    = { id: string; plan: string | null }
 
-  const ingresosBrutos = assignments.reduce((sum, a) => sum + (a.precio_lead ?? 0), 0)
+  const assignments = (conversionesRes.data ?? []) as Assignment[]
+
+  const ingresosBrutos = assignments.reduce((sum: number, a) => sum + (a.precio_lead ?? 0), 0)
   const convertidos    = assignments.filter((a) => a.estado === 'convertido').length
 
-  const leadsHoy = (leadsRes.data ?? []).filter((l) => {
+  const leadsHoy = ((leadsRes.data ?? []) as LeadRow[]).filter((l) => {
     const d = new Date(l.created_at)
     const hoy = new Date()
     return d.toDateString() === hoy.toDateString()
@@ -26,17 +30,20 @@ export default async function AdminDashboard() {
 
   const stats = [
     { label: 'Total leads', value: totalLeads.toLocaleString('es-ES'), sub: `+${leadsHoy} hoy`, icon: Users, color: 'text-blue-400' },
-    { label: 'Autoescuelas activas', value: totalAutoescuelas.toLocaleString('es-ES'), sub: `${(autoescuelasRes.data ?? []).filter((a) => a.plan === 'premium').length} premium`, icon: Building2, color: 'text-purple-400' },
+    { label: 'Autoescuelas activas', value: totalAutoescuelas.toLocaleString('es-ES'), sub: `${((autoescuelasRes.data ?? []) as AutoRow[]).filter((a) => a.plan === 'premium').length} premium`, icon: Building2, color: 'text-purple-400' },
     { label: 'Ingresos (leads)', value: `${ingresosBrutos.toFixed(0)}€`, sub: `${assignments.length} asignaciones`, icon: Euro, color: 'text-green-400' },
     { label: 'Conversiones', value: convertidos.toLocaleString('es-ES'), sub: `${assignments.length > 0 ? ((convertidos / assignments.length) * 100).toFixed(1) : 0}% ratio`, icon: TrendingUp, color: 'text-orange-400' },
   ]
 
+  type LeadFull = { id: string; nombre: string; email: string; telefono: string; estado: string; created_at: string; ciudad: { nombre?: string } | null }
+
   // Últimos 10 leads
-  const { data: ultimosLeads } = await supabase
+  const { data: ultimosLeadsRaw } = await supabase
     .from('leads')
     .select('id, nombre, email, telefono, estado, created_at, ciudad:ciudades(nombre)')
     .order('created_at', { ascending: false })
     .limit(10)
+  const ultimosLeads = (ultimosLeadsRaw ?? []) as LeadFull[]
 
   return (
     <div className="p-8">
@@ -79,14 +86,14 @@ export default async function AdminDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {(ultimosLeads ?? []).map((lead) => (
+              {ultimosLeads.map((lead) => (
                 <tr key={lead.id} className="hover:bg-gray-800/50 transition-colors">
                   <td className="px-6 py-3 text-white font-medium">{lead.nombre}</td>
                   <td className="px-6 py-3 text-gray-400">
-                    {(lead.ciudad as { nombre?: string } | null)?.nombre ?? '—'}
+                    {lead.ciudad?.nombre ?? '—'}
                   </td>
                   <td className="px-6 py-3">
-                    <EstadoBadge estado={lead.estado} />
+                    <EstadoBadge estado={lead.estado ?? 'nuevo'} />
                   </td>
                   <td className="px-6 py-3 text-gray-500">
                     {new Date(lead.created_at).toLocaleDateString('es-ES')}

@@ -1,4 +1,4 @@
-# CarnetFácil — Marketplace + SaaS para Autoescuelas
+# CarnetYa — Marketplace + SaaS para Autoescuelas
 
 > El "Booking.com" de los carnets de conducir en España.
 
@@ -172,7 +172,7 @@ vercel deploy --prod
 - Sin código extra — arquitectura ya preparada
 
 ### Otros países
-- Duplicar proyecto con dominio local (ej: `carnetfacil.pt`)
+- Duplicar proyecto con dominio local (ej: `carnetya.pt`)
 - Adaptar textos y precios por país
 - Compartir código base (monorepo con Turborepo)
 
