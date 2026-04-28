@@ -168,15 +168,15 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                 <label className="label">¿Tienes experiencia conduciendo?</label>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { value: false, label: 'No, empiezo de cero' },
-                    { value: true, label: 'Sí, algo de experiencia' },
+                    { value: false, label: '🚫 No', desc: 'Empiezo de cero' },
+                    { value: true, label: '✅ Sí', desc: 'Algo de experiencia' },
                   ].map((opt) => (
                     <label
                       key={String(opt.value)}
-                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${
+                      className={`flex flex-col p-3 rounded-xl border-2 cursor-pointer transition-all ${
                         experienciaValue === opt.value
-                          ? 'border-brand-500 bg-brand-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-brand-600 bg-brand-50 ring-1 ring-brand-200'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                     >
                       <input
@@ -185,7 +185,8 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                         value={String(opt.value)}
                         className="sr-only"
                       />
-                      <span className="text-sm font-medium">{opt.label}</span>
+                      <span className="text-sm font-semibold text-gray-900">{opt.label}</span>
+                      <span className="text-xs text-gray-600 mt-0.5">{opt.desc}</span>
                     </label>
                   ))}
                 </div>
@@ -195,15 +196,15 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                 <label className="label">¿Con qué urgencia necesitas el carnet?</label>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { value: 'rapido', label: '🚀 Lo antes posible', desc: 'Curso intensivo' },
+                    { value: 'rapido', label: '🚀 Urgente', desc: 'Curso intensivo' },
                     { value: 'normal', label: '🕐 Sin prisa', desc: 'Ritmo normal' },
                   ].map((opt) => (
                     <label
                       key={opt.value}
-                      className={`flex flex-col p-3 rounded-xl border-2 cursor-pointer transition-colors ${
+                      className={`flex flex-col p-3 rounded-xl border-2 cursor-pointer transition-all ${
                         urgenciaValue === opt.value
-                          ? 'border-brand-500 bg-brand-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-brand-600 bg-brand-50 ring-1 ring-brand-200'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                     >
                       <input
@@ -212,8 +213,8 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                         value={opt.value}
                         className="sr-only"
                       />
-                      <span className="text-sm font-medium">{opt.label}</span>
-                      <span className="text-xs text-gray-500">{opt.desc}</span>
+                      <span className="text-sm font-semibold text-gray-900">{opt.label}</span>
+                      <span className="text-xs text-gray-600 mt-0.5">{opt.desc}</span>
                     </label>
                   ))}
                 </div>
