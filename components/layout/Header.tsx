@@ -6,6 +6,17 @@ import { Menu, X, Car, ChevronDown } from 'lucide-react'
 
 const navLinks = [
   {
+    label: 'Carnet conducir',
+    href: '/carnet-de-conducir',
+    children: [
+      { label: 'Carnet de Coche (B)', href: '/carnet-de-conducir/coche' },
+      { label: 'Carnet de Moto (A)', href: '/carnet-de-conducir/moto' },
+      { label: 'Carnet de Camión (C)', href: '/carnet-de-conducir/camion' },
+      { label: 'Carnet de Autobús (D)', href: '/carnet-de-conducir/autobus' },
+      { label: 'Carnet de Ciclomotor (AM)', href: '/carnet-de-conducir/ciclomotor' },
+    ],
+  },
+  {
     label: 'Autoescuelas',
     href: '/autoescuelas/madrid',
     children: [
@@ -17,12 +28,11 @@ const navLinks = [
   },
   { label: 'Precio carnet', href: '/cuanto-cuesta-carnet-conducir' },
   { label: 'Test DGT', href: '/test-dgt' },
-  { label: 'Guías', href: '/requisitos-carnet-conducir' },
 ]
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
@@ -40,36 +50,35 @@ export default function Header() {
           <nav className="hidden md:flex items-center gap-6">
             {navLinks.map((link) =>
               link.children ? (
-                <div key={link.label} className="relative">
-                  <button
-                    className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-brand-600 transition-colors"
-                    onMouseEnter={() => setDropdownOpen(true)}
-                    onMouseLeave={() => setDropdownOpen(false)}
-                  >
+                <div
+                  key={link.label}
+                  className="relative"
+                  onMouseEnter={() => setOpenDropdown(link.label)}
+                  onMouseLeave={() => setOpenDropdown(null)}
+                >
+                  <button className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-brand-600 transition-colors">
                     {link.label}
                     <ChevronDown className="w-4 h-4" />
                   </button>
-                  {dropdownOpen && (
-                    <div
-                      className="absolute top-full left-0 mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50"
-                      onMouseEnter={() => setDropdownOpen(true)}
-                      onMouseLeave={() => setDropdownOpen(false)}
-                    >
+                  {openDropdown === link.label && (
+                    <div className="absolute top-full left-0 mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
                       {link.children.map((child) => (
                         <Link
                           key={child.href}
                           href={child.href}
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-600"
+                          onClick={() => setOpenDropdown(null)}
                         >
                           {child.label}
                         </Link>
                       ))}
                       <div className="border-t border-gray-100 mt-1 pt-1">
                         <Link
-                          href="/autoescuelas/madrid"
+                          href={link.href}
                           className="block px-4 py-2 text-sm text-brand-600 font-medium hover:bg-gray-50"
+                          onClick={() => setOpenDropdown(null)}
                         >
-                          Ver todas las ciudades →
+                          Ver todos →
                         </Link>
                       </div>
                     </div>
