@@ -37,6 +37,9 @@ export default function AutoescuelaRegistroPage() {
         email: form.email,
         password: form.password,
         nombre: form.nombre_contacto,
+        nombre_autoescuela: form.nombre_autoescuela,
+        ciudad_slug: form.ciudad_slug,
+        telefono: form.telefono,
       }),
     })
 
