@@ -49,8 +49,8 @@ export default function CarnetAutobusPage() {
                 <Bus className="w-4 h-4" /> Permisos D1 · D
               </div>
               <h1 className="text-4xl sm:text-5xl font-black leading-tight mb-4">
-                Carnet de Autobús<br />
-                <span className="text-yellow-300">Permiso D y D1</span>
+                Carnet de Autobús{' '}
+                <span className="text-yellow-300 block">Permiso D y D1</span>
               </h1>
               <p className="text-purple-100 text-lg mb-6 leading-relaxed">
                 Para conducir autobuses urbanos, autocares y minibuses de forma profesional. Alta demanda laboral y estabilidad. Todo lo que necesitas saber en 2025.
@@ -67,7 +67,7 @@ export default function CarnetAutobusPage() {
                 <p className="text-purple-200 text-xs text-center mt-0.5">Gratis · Sin compromiso · Hasta 3 presupuestos</p>
               </div>
               <div className="p-1">
-                <LeadForm />
+                <LeadForm defaultCarnet="D" />
               </div>
             </div>
           </div>

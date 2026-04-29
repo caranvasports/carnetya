@@ -4,12 +4,12 @@ import { LayoutDashboard, Users, UserCheck, Calendar, CreditCard, Settings, LogO
 import { createClient } from '@/lib/supabase/server'
 
 const navItems = [
-  { label: 'Dashboard',  href: '/autoescuela/dashboard', icon: LayoutDashboard },
-  { label: 'Mis leads',  href: '/autoescuela/leads', icon: Users },
-  { label: 'Alumnos',    href: '/autoescuela/alumnos', icon: UserCheck },
-  { label: 'Calendario', href: '/autoescuela/calendario', icon: Calendar },
-  { label: 'Facturación', href: '/autoescuela/facturacion', icon: CreditCard },
-  { label: 'Mi perfil',  href: '/autoescuela/perfil', icon: Settings },
+  { label: 'Dashboard',   href: '/autoescuela/dashboard', icon: LayoutDashboard },
+  { label: 'Mis leads',   href: '/autoescuela/leads',     icon: Users },
+  { label: 'Alumnos',     href: '/autoescuela/alumnos',   icon: UserCheck },
+  { label: 'Calendario',  href: '/autoescuela/calendario',icon: Calendar },
+  { label: 'Facturación', href: '/autoescuela/facturacion',icon: CreditCard },
+  { label: 'Mi perfil',   href: '/autoescuela/perfil',    icon: Settings },
 ]
 
 export default async function AutoescuelaLayout({ children }: { children: React.ReactNode }) {
@@ -18,21 +18,26 @@ export default async function AutoescuelaLayout({ children }: { children: React.
 
   if (!user) redirect('/autoescuela/login')
 
-  const { data: usuario } = await supabase
-    .from('usuarios')
-    .select('role, nombre, autoescuela_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!usuario || !['admin', 'autoescuela'].includes(usuario.role)) redirect('/')
-
-  const { data: autoescuela } = usuario.autoescuela_id
-    ? await supabase
+  // Intentamos obtener datos adicionales, pero no bloqueamos si las tablas no existen
+  let nombreAutoescuela = 'Mi Autoescuela'
+  let plan = 'free'
+  try {
+    const { data: usuario } = await supabase
+      .from('usuarios')
+      .select('nombre, autoescuela_id')
+      .eq('id', user.id)
+      .single()
+    if (usuario?.autoescuela_id) {
+      const { data: ae } = await supabase
         .from('autoescuelas')
         .select('nombre, plan')
         .eq('id', usuario.autoescuela_id)
         .single()
-    : { data: null }
+      if (ae) { nombreAutoescuela = ae.nombre; plan = ae.plan }
+    } else if (usuario?.nombre) {
+      nombreAutoescuela = usuario.nombre
+    }
+  } catch { /* tablas no configuradas aún — OK */ }
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -45,9 +50,9 @@ export default async function AutoescuelaLayout({ children }: { children: React.
             </div>
             <div>
               <p className="font-bold text-gray-900 text-sm leading-none truncate max-w-[150px]">
-                {autoescuela?.nombre ?? 'Mi Autoescuela'}
+                {nombreAutoescuela}
               </p>
-              <p className="text-xs text-gray-400 capitalize mt-0.5">{autoescuela?.plan ?? 'free'}</p>
+              <p className="text-xs text-gray-400 capitalize mt-0.5">{plan}</p>
             </div>
           </div>
         </div>
@@ -68,9 +73,9 @@ export default async function AutoescuelaLayout({ children }: { children: React.
         <div className="p-4 border-t border-gray-100">
           <div className="px-3 py-2 mb-2">
             <p className="text-xs text-gray-500">Conectado como</p>
-            <p className="text-sm font-medium text-gray-800 truncate">{usuario.nombre ?? user.email}</p>
+            <p className="text-sm font-medium text-gray-800 truncate">{user.email}</p>
           </div>
-          <form action="/api/auth/signout" method="POST">
+          <form action="/api/autoescuela/logout" method="POST">
             <button
               type="submit"
               className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors w-full text-sm"

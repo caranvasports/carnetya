@@ -56,8 +56,8 @@ export default function CarnetMotoPage() {
                 <Bike className="w-4 h-4" /> Permisos AM · A1 · A2 · A
               </div>
               <h1 className="text-4xl sm:text-5xl font-black leading-tight mb-4">
-                Carnet de Moto<br />
-                <span className="text-yellow-300">Todos los permisos</span>
+                Carnet de Moto{' '}
+                <span className="text-yellow-300 block">Todos los permisos</span>
               </h1>
               <p className="text-orange-100 text-lg mb-6 leading-relaxed">
                 Desde el ciclomotor (AM) hasta la moto sin límites (A). Descubre qué permiso necesitas, a qué edad puedes obtenerlo y cuánto te costará en 2025.
@@ -74,7 +74,7 @@ export default function CarnetMotoPage() {
                 <p className="text-orange-200 text-xs text-center mt-0.5">Gratis · Sin compromiso · Hasta 3 presupuestos</p>
               </div>
               <div className="p-1">
-                <LeadForm />
+                <LeadForm defaultCarnet="A" />
               </div>
             </div>
           </div>

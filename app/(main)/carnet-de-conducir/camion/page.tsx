@@ -54,8 +54,8 @@ export default function CarnetCamionPage() {
                 <Truck className="w-4 h-4" /> Permisos C1 · C
               </div>
               <h1 className="text-4xl sm:text-5xl font-black leading-tight mb-4">
-                Carnet de Camión<br />
-                <span className="text-yellow-300">Permiso C y C1</span>
+                Carnet de Camión{' '}
+                <span className="text-yellow-300 block">Permiso C y C1</span>
               </h1>
               <p className="text-green-100 text-lg mb-6 leading-relaxed">
                 El carnet más demandado por el sector del transporte y la logística. Alta inserción laboral y posibilidad de financiación por la empresa. Guía actualizada 2025.
@@ -72,7 +72,7 @@ export default function CarnetCamionPage() {
                 <p className="text-green-200 text-xs text-center mt-0.5">Gratis · Sin compromiso · Hasta 3 presupuestos</p>
               </div>
               <div className="p-1">
-                <LeadForm />
+                <LeadForm defaultCarnet="C" />
               </div>
             </div>
           </div>

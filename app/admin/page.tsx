@@ -4,46 +4,40 @@ import { Users, Building2, TrendingUp, Euro, ArrowUpRight } from 'lucide-react'
 export default async function AdminDashboard() {
   const supabase = createServiceClient()
 
-  // Estadísticas en paralelo
-  const [leadsRes, autoescuelasRes, conversionesRes] = await Promise.all([
-    supabase.from('leads').select('id, estado, created_at', { count: 'exact' }),
-    supabase.from('autoescuelas').select('id, plan', { count: 'exact' }).eq('activa', true),
-    supabase.from('lead_assignments').select('id, precio_lead, estado', { count: 'exact' }),
-  ])
+  // Estadísticas — graceful fallback si las tablas no existen aún
+  let totalLeads = 0, totalAutoescuelas = 0, ingresosBrutos = 0, convertidos = 0, leadsHoy = 0
+  let ultimosLeads: Array<{ id: string; nombre: string; email: string; telefono: string; estado: string; created_at: string; ciudad: { nombre?: string } | null }> = []
 
-  const totalLeads       = leadsRes.count ?? 0
-  const totalAutoescuelas = autoescuelasRes.count ?? 0
-  type Assignment = { id: string; precio_lead: number | null; estado: string | null }
-  type LeadRow    = { id: string; estado: string | null; created_at: string }
-  type AutoRow    = { id: string; plan: string | null }
+  try {
+    const [leadsRes, autoescuelasRes, conversionesRes] = await Promise.all([
+      supabase.from('leads').select('id, estado, created_at', { count: 'exact' }),
+      supabase.from('autoescuelas').select('id, plan', { count: 'exact' }).eq('activa', true),
+      supabase.from('lead_assignments').select('id, precio_lead, estado', { count: 'exact' }),
+    ])
 
-  const assignments = (conversionesRes.data ?? []) as Assignment[]
+    totalLeads        = leadsRes.count ?? 0
+    totalAutoescuelas = autoescuelasRes.count ?? 0
+    const assignments = (conversionesRes.data ?? []) as Array<{ precio_lead: number | null; estado: string | null }>
+    ingresosBrutos    = assignments.reduce((s, a) => s + (a.precio_lead ?? 0), 0)
+    convertidos       = assignments.filter((a) => a.estado === 'convertido').length
+    leadsHoy          = ((leadsRes.data ?? []) as Array<{ created_at: string }>).filter((l) => {
+      return new Date(l.created_at).toDateString() === new Date().toDateString()
+    }).length
 
-  const ingresosBrutos = assignments.reduce((sum: number, a) => sum + (a.precio_lead ?? 0), 0)
-  const convertidos    = assignments.filter((a) => a.estado === 'convertido').length
-
-  const leadsHoy = ((leadsRes.data ?? []) as LeadRow[]).filter((l) => {
-    const d = new Date(l.created_at)
-    const hoy = new Date()
-    return d.toDateString() === hoy.toDateString()
-  }).length
+    const { data: raw } = await supabase
+      .from('leads')
+      .select('id, nombre, email, telefono, estado, created_at, ciudad:ciudades(nombre)')
+      .order('created_at', { ascending: false })
+      .limit(10)
+    ultimosLeads = (raw ?? []) as typeof ultimosLeads
+  } catch { /* tablas no aplicadas aún */ }
 
   const stats = [
-    { label: 'Total leads', value: totalLeads.toLocaleString('es-ES'), sub: `+${leadsHoy} hoy`, icon: Users, color: 'text-blue-400' },
-    { label: 'Autoescuelas activas', value: totalAutoescuelas.toLocaleString('es-ES'), sub: `${((autoescuelasRes.data ?? []) as AutoRow[]).filter((a) => a.plan === 'premium').length} premium`, icon: Building2, color: 'text-purple-400' },
-    { label: 'Ingresos (leads)', value: `${ingresosBrutos.toFixed(0)}€`, sub: `${assignments.length} asignaciones`, icon: Euro, color: 'text-green-400' },
-    { label: 'Conversiones', value: convertidos.toLocaleString('es-ES'), sub: `${assignments.length > 0 ? ((convertidos / assignments.length) * 100).toFixed(1) : 0}% ratio`, icon: TrendingUp, color: 'text-orange-400' },
+    { label: 'Total leads',          value: totalLeads.toLocaleString('es-ES'),        sub: `+${leadsHoy} hoy`,             icon: Users,      color: 'text-blue-400' },
+    { label: 'Autoescuelas activas', value: totalAutoescuelas.toLocaleString('es-ES'),  sub: 'plan activo',                  icon: Building2,  color: 'text-purple-400' },
+    { label: 'Ingresos (leads)',     value: `${ingresosBrutos.toFixed(0)}€`,            sub: 'total acumulado',              icon: Euro,       color: 'text-green-400' },
+    { label: 'Conversiones',         value: convertidos.toLocaleString('es-ES'),        sub: 'leads convertidos',            icon: TrendingUp, color: 'text-orange-400' },
   ]
-
-  type LeadFull = { id: string; nombre: string; email: string; telefono: string; estado: string; created_at: string; ciudad: { nombre?: string } | null }
-
-  // Últimos 10 leads
-  const { data: ultimosLeadsRaw } = await supabase
-    .from('leads')
-    .select('id, nombre, email, telefono, estado, created_at, ciudad:ciudades(nombre)')
-    .order('created_at', { ascending: false })
-    .limit(10)
-  const ultimosLeads = (ultimosLeadsRaw ?? []) as LeadFull[]
 
   return (
     <div className="p-8">
@@ -67,7 +61,7 @@ export default async function AdminDashboard() {
       </div>
 
       {/* Últimos leads */}
-      <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+      {ultimosLeads.length > 0 && <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <h2 className="font-semibold text-white">Últimos leads</h2>
           <a href="/admin/leads" className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1">
@@ -111,7 +105,7 @@ export default async function AdminDashboard() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

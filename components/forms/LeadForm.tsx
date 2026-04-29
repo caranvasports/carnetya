@@ -6,14 +6,24 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, ChevronLeft, Check, Loader2 } from 'lucide-react'
-import { type LeadFormData } from '@/types'
 import { CIUDADES } from '@/data/cities'
+
+const CARNETS = [
+  { value: 'B',  label: 'B — Coche' },
+  { value: 'A',  label: 'A — Moto' },
+  { value: 'AM', label: 'AM — Ciclomotor' },
+  { value: 'A1', label: 'A1 — Moto pequeña' },
+  { value: 'A2', label: 'A2 — Moto mediana' },
+  { value: 'C',  label: 'C — Camión' },
+  { value: 'D',  label: 'D — Autobús' },
+]
 
 const schema = z.object({
   nombre:             z.string().min(2, 'Nombre requerido'),
   telefono:           z.string().regex(/^[6-9]\d{8}$/, 'Teléfono no válido (ej: 612345678)'),
   email:              z.string().email('Email no válido'),
   ciudad:             z.string().min(1, 'Selecciona una ciudad'),
+  tipo_carnet:        z.string().min(1, 'Selecciona un tipo de carnet'),
   edad:               z.coerce.number().min(14, 'Mínimo 14 años').max(99, 'Edad no válida'),
   tiene_experiencia:  z.boolean(),
   urgencia:           z.enum(['rapido', 'normal']),
@@ -21,18 +31,15 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-const STEPS = [
-  { title: '¿Dónde buscas?', fields: ['ciudad'] },
-  { title: 'Cuéntanos un poco', fields: ['edad', 'tiene_experiencia', 'urgencia'] },
-  { title: 'Tus datos de contacto', fields: ['nombre', 'telefono', 'email'] },
-]
-
 interface LeadFormProps {
   defaultCiudad?: string
+  defaultCarnet?: string
   onSuccess?: () => void
 }
 
-export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
+export default function LeadForm({ defaultCiudad, defaultCarnet, onSuccess }: LeadFormProps) {
+  // Si ciudad Y carnet ya están preseleccionados, empezamos en el paso de perfil
+  const skipStep0 = !!(defaultCiudad && defaultCarnet)
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -43,15 +50,33 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
     handleSubmit,
     trigger,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      ciudad: defaultCiudad ?? '',
+      ciudad:            defaultCiudad  ?? '',
+      tipo_carnet:       defaultCarnet  ?? '',
       tiene_experiencia: false,
-      urgencia: 'normal',
+      urgencia:          'normal',
     },
   })
+
+  // Step 0 puede tener 0, 1 o 2 campos visibles según lo que ya esté prerellenado
+  const step0Fields: string[] = []
+  if (!defaultCiudad) step0Fields.push('ciudad')
+  if (!defaultCarnet) step0Fields.push('tipo_carnet')
+
+  const STEPS = skipStep0
+    ? [
+        { title: 'Cuéntanos un poco', fields: ['edad', 'tiene_experiencia', 'urgencia'] },
+        { title: 'Tus datos de contacto', fields: ['nombre', 'telefono', 'email'] },
+      ]
+    : [
+        { title: step0Fields.length === 2 ? '¿Dónde y qué carnet buscas?' : step0Fields.includes('ciudad') ? '¿Dónde buscas?' : '¿Qué carnet necesitas?', fields: step0Fields },
+        { title: 'Cuéntanos un poco', fields: ['edad', 'tiene_experiencia', 'urgencia'] },
+        { title: 'Tus datos de contacto', fields: ['nombre', 'telefono', 'email'] },
+      ]
 
   async function validateStep() {
     const fields = STEPS[step].fields as (keyof FormData)[]
@@ -91,8 +116,8 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
     }
   }
 
-  const urgenciaValue = watch('urgencia')
-  const experienciaValue = watch('tiene_experiencia')
+  const urgenciaValue       = watch('urgencia')
+  const experienciaValue    = watch('tiene_experiencia')
 
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
@@ -127,29 +152,45 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
           ))}
         </div>
 
-        <h3 className="text-xl font-bold text-gray-900 mb-6">{STEPS[step].title}</h3>
+        <p className="text-xl font-bold text-gray-900 mb-6">{STEPS[step].title}</p>
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          {/* Step 0: Ciudad */}
-          {step === 0 && (
+          {/* Step 0: Ciudad + Carnet (solo si skipStep0 = false) */}
+          {!skipStep0 && step === 0 && (
             <div className="space-y-4">
-              <div>
-                <label className="label">Tu ciudad</label>
-                <select {...register('ciudad')} className="input-field text-gray-900">
-                  <option value="">Selecciona tu ciudad...</option>
-                  {CIUDADES.map((c) => (
-                    <option key={c.slug} value={c.slug}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </select>
-                {errors.ciudad && <p className="text-red-500 text-xs mt-1">{errors.ciudad.message}</p>}
-              </div>
+              {!defaultCiudad && (
+                <div>
+                  <label className="label">Tu ciudad</label>
+                  <select {...register('ciudad')} className="input-field text-gray-900">
+                    <option value="">Selecciona tu ciudad...</option>
+                    {CIUDADES.map((c) => (
+                      <option key={c.slug} value={c.slug}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.ciudad && <p className="text-red-500 text-xs mt-1">{errors.ciudad.message}</p>}
+                </div>
+              )}
+              {!defaultCarnet && (
+                <div>
+                  <label className="label">¿Qué carnet necesitas?</label>
+                  <select {...register('tipo_carnet')} className="input-field text-gray-900">
+                    <option value="">Selecciona el tipo de carnet...</option>
+                    {CARNETS.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.tipo_carnet && <p className="text-red-500 text-xs mt-1">{errors.tipo_carnet.message}</p>}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Step 1: Perfil */}
-          {step === 1 && (
+          {/* Step perfil (índice 1 normal, 0 si skipStep0) */}
+          {STEPS[step].fields.includes('edad') && (
             <div className="space-y-4">
               <div>
                 <label className="label">Tu edad</label>
@@ -169,25 +210,21 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { value: false, label: '🚫 No', desc: 'Empiezo de cero' },
-                    { value: true, label: '✅ Sí', desc: 'Algo de experiencia' },
+                    { value: true,  label: '✅ Sí', desc: 'Algo de experiencia' },
                   ].map((opt) => (
-                    <label
+                    <button
                       key={String(opt.value)}
-                      className={`flex flex-col p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                      type="button"
+                      onClick={() => setValue('tiene_experiencia', opt.value, { shouldValidate: true })}
+                      className={`flex flex-col p-3 rounded-xl border-2 cursor-pointer transition-all text-left ${
                         experienciaValue === opt.value
                           ? 'border-brand-600 bg-brand-50 ring-1 ring-brand-200'
                           : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                     >
-                      <input
-                        type="radio"
-                        {...register('tiene_experiencia', { setValueAs: (v) => v === 'true' })}
-                        value={String(opt.value)}
-                        className="sr-only"
-                      />
                       <span className="text-sm font-semibold text-gray-900">{opt.label}</span>
                       <span className="text-xs text-gray-600 mt-0.5">{opt.desc}</span>
-                    </label>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -199,31 +236,27 @@ export default function LeadForm({ defaultCiudad, onSuccess }: LeadFormProps) {
                     { value: 'rapido', label: '🚀 Urgente', desc: 'Curso intensivo' },
                     { value: 'normal', label: '🕐 Sin prisa', desc: 'Ritmo normal' },
                   ].map((opt) => (
-                    <label
+                    <button
                       key={opt.value}
-                      className={`flex flex-col p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                      type="button"
+                      onClick={() => setValue('urgencia', opt.value as 'rapido' | 'normal', { shouldValidate: true })}
+                      className={`flex flex-col p-3 rounded-xl border-2 cursor-pointer transition-all text-left ${
                         urgenciaValue === opt.value
                           ? 'border-brand-600 bg-brand-50 ring-1 ring-brand-200'
                           : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                     >
-                      <input
-                        type="radio"
-                        {...register('urgencia')}
-                        value={opt.value}
-                        className="sr-only"
-                      />
                       <span className="text-sm font-semibold text-gray-900">{opt.label}</span>
                       <span className="text-xs text-gray-600 mt-0.5">{opt.desc}</span>
-                    </label>
+                    </button>
                   ))}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 2: Contacto */}
-          {step === 2 && (
+          {/* Step contacto */}
+          {STEPS[step].fields.includes('nombre') && (
             <div className="space-y-4">
               <div>
                 <label className="label">Nombre</label>

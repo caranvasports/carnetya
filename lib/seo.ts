@@ -21,7 +21,7 @@ export function buildMetadata({
   const url = canonical.startsWith('http') ? canonical : `${SITE_URL}${canonical}`
 
   return {
-    title: fullTitle,
+    title: { absolute: fullTitle },
     description,
     metadataBase: new URL(SITE_URL),
     alternates: { canonical: url },

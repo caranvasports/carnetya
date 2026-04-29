@@ -67,8 +67,8 @@ export default function CarnetCiclomotorPage() {
                 <Zap className="w-4 h-4" /> Permiso AM — El más fácil
               </div>
               <h1 className="text-4xl sm:text-5xl font-black leading-tight mb-4">
-                Carnet de Ciclomotor<br />
-                <span className="text-white drop-shadow">Permiso AM</span>
+                Carnet de Ciclomotor{' '}
+                <span className="text-white drop-shadow block">Permiso AM</span>
               </h1>
               <p className="text-yellow-100 text-lg mb-6 leading-relaxed">
                 El carnet más asequible y rápido de obtener. Solo examen teórico, sin prácticas. Desde los 15 años y desde 150 €. Ideal para desplazarte por ciudad.
@@ -85,7 +85,7 @@ export default function CarnetCiclomotorPage() {
                 <p className="text-yellow-100 text-xs text-center mt-0.5">Gratis · Sin compromiso · Hasta 3 presupuestos</p>
               </div>
               <div className="p-1">
-                <LeadForm />
+                <LeadForm defaultCarnet="AM" />
               </div>
             </div>
           </div>

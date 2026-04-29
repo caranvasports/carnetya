@@ -77,8 +77,8 @@ export default function CarnetCochePage() {
                 <Car className="w-4 h-4" /> Permiso B — El más solicitado
               </div>
               <h1 className="text-4xl sm:text-5xl font-black leading-tight mb-4">
-                Carnet de Coche<br />
-                <span className="text-yellow-300">Permiso B</span>
+                Carnet de Coche{' '}
+                <span className="text-yellow-300 block">Permiso B</span>
               </h1>
               <p className="text-blue-100 text-lg mb-6 leading-relaxed">
                 El carnet de conducir más popular en España. Te permite conducir turismos, SUVs y furgonetas ligeras. Guía completa con precios, requisitos y cómo aprobarlo a la primera.
@@ -95,7 +95,7 @@ export default function CarnetCochePage() {
                 <p className="text-blue-200 text-xs text-center mt-0.5">Gratis · Sin compromiso · Hasta 3 presupuestos</p>
               </div>
               <div className="p-1">
-                <LeadForm />
+                <LeadForm defaultCarnet="B" />
               </div>
             </div>
           </div>

@@ -125,8 +125,8 @@ export default function CarnetConducirPage() {
                 Guía actualizada 2025
               </div>
               <h1 className="text-4xl sm:text-5xl font-black leading-tight mb-4">
-                Carnet de Conducir<br />
-                <span className="text-yellow-300">en España</span>
+                Carnet de Conducir{' '}
+                <span className="text-yellow-300 block">en España</span>
               </h1>
               <p className="text-blue-100 text-lg mb-6 leading-relaxed">
                 Tipos, precios actualizados, requisitos y cómo obtenerlo paso a paso. Compara autoescuelas y consigue el mejor precio sin moverte del sofá.
