@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutDashboard, Users, Building2, Settings, BarChart3, LogOut } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { getAdminSession } from '@/lib/admin-auth'
 
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -12,20 +12,8 @@ const navItems = [
 ]
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) redirect('/admin/login')
-
-  const { data: usuario } = await supabase
-    .from('usuarios')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  const ADMIN_EMAIL_ENV = process.env.ADMIN_EMAIL ?? 'carnetyainfo@gmail.com'
-  const isAdmin = usuario?.role === 'admin' || user.email === ADMIN_EMAIL_ENV
-  if (!isAdmin) redirect('/')
+  const session = await getAdminSession()
+  if (!session) redirect('/admin/login')
 
   return (
     <div className="flex h-screen bg-gray-950 text-white">
@@ -50,7 +38,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           ))}
         </nav>
         <div className="p-4 border-t border-gray-800">
-          <form action="/api/auth/signout" method="POST">
+          <p className="text-xs text-gray-500 px-3 mb-3 truncate">{session.email}</p>
+          <form action="/api/admin/logout" method="POST">
             <button
               type="submit"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors w-full text-sm"

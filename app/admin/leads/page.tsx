@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type Lead } from '@/types'
-import { Search, Filter, RefreshCw, Mail, Phone } from 'lucide-react'
+import { Search, RefreshCw, Mail, Phone, AlertCircle } from 'lucide-react'
 
 const ESTADO_OPTIONS = ['todos', 'nuevo', 'asignado', 'contactado', 'convertido', 'perdido']
 const ESTADO_COLORS: Record<string, string> = {
@@ -17,26 +17,32 @@ const ESTADO_COLORS: Record<string, string> = {
 export default function AdminLeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const [dbError, setDbError] = useState(false)
   const [estadoFilter, setEstadoFilter] = useState('todos')
   const [search, setSearch] = useState('')
   const supabase = createClient()
 
   const loadLeads = useCallback(async () => {
     setLoading(true)
+    setDbError(false)
     let query = supabase
       .from('leads')
       .select('*, ciudad:ciudades(nombre)')
       .order('created_at', { ascending: false })
-      .limit(100)
+      .limit(200)
 
     if (estadoFilter !== 'todos') {
       query = query.eq('estado', estadoFilter)
     }
 
-    const { data } = await query
-    setLeads((data as Lead[]) ?? [])
+    const { data, error } = await query
+    if (error) {
+      setDbError(true)
+    } else {
+      setLeads((data as Lead[]) ?? [])
+    }
     setLoading(false)
-  }, [estadoFilter])
+  }, [estadoFilter, supabase])
 
   useEffect(() => { loadLeads() }, [loadLeads])
 
@@ -103,8 +109,19 @@ export default function AdminLeadsPage() {
       <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
         {loading ? (
           <div className="text-center py-16 text-gray-500">Cargando...</div>
+        ) : dbError ? (
+          <div className="text-center py-16 px-6">
+            <AlertCircle className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
+            <p className="text-white font-semibold mb-1">Base de datos no configurada</p>
+            <p className="text-gray-400 text-sm max-w-md mx-auto">
+              El esquema de Supabase no está aplicado aún. Los leads enviados llegan por email a <strong className="text-white">carnetyainfo@gmail.com</strong>.
+              Para ver los leads aquí, aplica el SQL en Supabase Dashboard → SQL Editor.
+            </p>
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-500">No hay leads con esos filtros</div>
+          <div className="text-center py-16 text-gray-500">
+            {leads.length === 0 ? 'Todavía no hay leads' : 'No hay leads con esos filtros'}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
