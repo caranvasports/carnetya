@@ -1,12 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Car, Eye, EyeOff } from 'lucide-react'
 
 export default function AdminLoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('carnetyainfo@gmail.com')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -28,8 +26,7 @@ export default function AdminLoginPage() {
         setError(data.error ?? 'Credenciales incorrectas')
         return
       }
-      router.push('/admin')
-      router.refresh()
+      window.location.href = '/admin'
     } catch {
       setError('Error de conexión. Inténtalo de nuevo.')
     } finally {

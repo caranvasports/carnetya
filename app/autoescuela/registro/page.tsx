@@ -1,18 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Car } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { CIUDADES } from '@/data/cities'
 
 export default function AutoescuelaRegistroPage() {
-  const router = useRouter()
   const supabase = createClient()
-  const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
   const [form, setForm] = useState({
     nombre_autoescuela: '',
     ciudad_slug: '',
@@ -31,55 +29,60 @@ export default function AutoescuelaRegistroPage() {
     setLoading(true)
     setError('')
 
-    // 1. Crear usuario en Supabase Auth
-    const { data: authData, error: signUpError } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: {
-          nombre: form.nombre_contacto,
-          rol: 'autoescuela',
-        },
-      },
+    // 1. Crear usuario confirmado via API (usa service role, no necesita tablas)
+    const res = await fetch('/api/autoescuela/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: form.email,
+        password: form.password,
+        nombre: form.nombre_contacto,
+      }),
     })
 
-    if (signUpError || !authData.user) {
-      setError(signUpError?.message ?? 'Error al crear la cuenta. Inténtalo de nuevo.')
+    if (!res.ok) {
+      const data = await res.json()
+      setError(data.error ?? 'Error al crear la cuenta')
       setLoading(false)
       return
     }
 
-    // 2. Buscar ciudad
-    const { data: ciudad } = await supabase
-      .from('ciudades')
-      .select('id')
-      .eq('slug', form.ciudad_slug)
-      .single()
-
-    // 3. Crear autoescuela
-    const { data: autoescuela } = await supabase
-      .from('autoescuelas')
-      .insert({
-        nombre: form.nombre_autoescuela,
-        slug: form.nombre_autoescuela.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-        ciudad_id: ciudad?.id,
-        telefono: form.telefono || null,
-        plan: 'free',
-        activa: true,
-      })
-      .select()
-      .single()
-
-    // 4. Actualizar perfil de usuario con autoescuela_id
-    if (autoescuela) {
-      await supabase
-        .from('usuarios')
-        .update({ autoescuela_id: autoescuela.id, rol: 'autoescuela' })
-        .eq('id', authData.user.id)
-    }
+    // 2. Iniciar sesión automáticamente
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email: form.email,
+      password: form.password,
+    })
 
     setLoading(false)
-    router.push('/autoescuela/dashboard')
+
+    if (loginError) {
+      // Cuenta creada pero no pudimos hacer login automático — redirigir a login
+      setDone(true)
+      return
+    }
+
+    window.location.href = '/autoescuela/dashboard'
+  }
+
+  if (done) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+            <div className="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl">✅</span>
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">Cuenta creada</h1>
+            <p className="text-gray-500 text-sm mb-6">
+              Tu cuenta ha sido creada. Inicia sesión con tu email y contraseña.
+            </p>
+            <Link href="/autoescuela/login" className="btn-primary w-full block text-center">
+              Iniciar sesión
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

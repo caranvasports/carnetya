@@ -1,13 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Car, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AutoescuelaLoginPage() {
-  const router = useRouter()
   const supabase = createClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -20,12 +18,12 @@ export default function AutoescuelaLoginPage() {
     setLoading(true)
     setError('')
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
     if (signInError) {
-      setError('Credenciales incorrectas.')
+      setError('Credenciales incorrectas. Comprueba tu email y contraseña.')
+      setLoading(false)
       return
     }
-    router.push('/autoescuela/dashboard')
+    window.location.href = '/autoescuela/dashboard'
   }
 
   return (
