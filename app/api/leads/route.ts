@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import nodemailer from 'nodemailer'
 import { createServiceClient } from '@/lib/supabase/server'
+import { ensureLeadsTable } from '@/lib/db-setup'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'carnetyainfo@gmail.com'
 
@@ -83,6 +84,7 @@ const schema = z.object({
   telefono:          z.string().regex(/^[6-9]\d{8}$/),
   email:             z.string().email().max(200),
   ciudad:            z.string().min(1).max(80),
+  tipo_carnet:       z.string().max(20).optional(),
   edad:              z.coerce.number().min(14).max(99).optional(),
   tiene_experiencia: z.boolean().optional().default(false),
   urgencia:          z.enum(['rapido', 'normal']).default('normal'),
@@ -112,49 +114,30 @@ export async function POST(req: NextRequest) {
 
   const { ciudad: ciudadSlug, ...rest } = parsed.data
 
-  // Intentar guardar en Supabase (no bloquear si falla — schema puede no estar aplicado aún)
+  // Guardar en Supabase con auto-creación de tabla si no existe
   let leadId: string | null = null
   try {
     const supabase = createServiceClient()
-    const { data: ciudad } = await supabase
-      .from('ciudades')
-      .select('id')
-      .eq('slug', ciudadSlug)
-      .maybeSingle()
 
-    const { data: lead } = await supabase
+    const doInsert = () => supabase
       .from('leads')
-      .insert({ ...rest, ciudad_id: ciudad?.id ?? null, ip_address: ip })
+      .insert({ ...rest, ciudad: ciudadSlug, ip_address: ip })
       .select('id')
       .single()
 
-    if (lead) {
-      leadId = lead.id
-      // Asignar a autoescuelas de la ciudad
-      if (ciudad?.id) {
-        const { data: autoescuelas } = await supabase
-          .from('autoescuelas')
-          .select('id, plan')
-          .eq('ciudad_id', ciudad.id)
-          .eq('activa', true)
-          .in('plan', ['premium', 'basic'])
-          .order('rating_promedio', { ascending: false })
-          .limit(3)
+    let { data: lead, error: insertError } = await doInsert()
 
-        if (autoescuelas && autoescuelas.length > 0) {
-          const assignments = (autoescuelas as { id: string; plan: string | null }[]).map((ae) => ({
-            lead_id: lead.id,
-            autoescuela_id: ae.id,
-            precio_lead: ae.plan === 'premium' ? 8 : 5,
-            estado: 'enviado' as const,
-          }))
-          await supabase.from('lead_assignments').insert(assignments)
-          await supabase.from('leads').update({ estado: 'asignado' }).eq('id', lead.id)
-        }
-      }
+    // Si la tabla no existe, crearla y reintentar
+    if (insertError && ((insertError as { code?: string }).code === '42P01' || insertError.message.includes('does not exist'))) {
+      console.log('[CarnetYa] Tabla leads no existe, creando...')
+      await ensureLeadsTable()
+      const retry = await doInsert()
+      lead = retry.data
     }
+
+    if (lead) leadId = lead.id
   } catch (dbErr) {
-    console.warn('[CarnetYa] Supabase no disponible, continuando sin guardar en BD:', dbErr)
+    console.warn('[CarnetYa] Error guardando lead en BD:', dbErr)
   }
 
   // Enviar email — siempre intentamos (no bloqueamos la respuesta si falla)
