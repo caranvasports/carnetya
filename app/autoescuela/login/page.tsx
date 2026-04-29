@@ -17,13 +17,27 @@ export default function AutoescuelaLoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    // 1. Intentar login de autoescuela (Supabase)
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (signInError) {
-      setError('Credenciales incorrectas. Comprueba tu email y contraseña.')
-      setLoading(false)
+    if (!signInError) {
+      window.location.href = '/autoescuela/dashboard'
       return
     }
-    window.location.href = '/autoescuela/dashboard'
+
+    // 2. Si falla Supabase, intentar login de admin (cookie)
+    const adminRes = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    if (adminRes.ok) {
+      window.location.href = '/admin'
+      return
+    }
+
+    setError('Credenciales incorrectas. Comprueba tu email y contraseña.')
+    setLoading(false)
   }
 
   return (
