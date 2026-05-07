@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
 
   // Guardar en Supabase con auto-creación de tabla si no existe
   let leadId: string | null = null
+  let dbError: unknown = null
   try {
     const supabase = createServiceClient()
     const ciudadId = await findCiudadId(supabase, ciudadSlug)
@@ -160,6 +161,7 @@ export async function POST(req: NextRequest) {
       ...rest,
       ciudad_id: ciudadId,
       tipo_carnet,
+      notas: tipo_carnet ? `Tipo de carnet solicitado: ${tipo_carnet}` : undefined,
       ip_address: ip,
     }
 
@@ -198,6 +200,7 @@ export async function POST(req: NextRequest) {
       await assignLeadToAutoescuelas(supabase, lead.id, ciudadId)
     }
   } catch (dbErr) {
+    dbError = dbErr
     console.warn('[CarnetYa] Error guardando lead en BD:', dbErr)
   }
 
@@ -208,6 +211,13 @@ export async function POST(req: NextRequest) {
     await sendEmail(subject, html)
   } catch (emailErr) {
     console.error('[CarnetYa] Error enviando email:', emailErr)
+  }
+
+  if (!leadId) {
+    return NextResponse.json(
+      { success: false, error: 'No se pudo guardar el lead en el panel' },
+      { status: dbError ? 500 : 502 }
+    )
   }
 
   return NextResponse.json({ success: true, leadId }, { status: 201 })
