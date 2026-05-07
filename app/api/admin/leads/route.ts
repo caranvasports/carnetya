@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getAdminSessionFromRequest } from '@/lib/admin-auth'
+import { listBlobLeads, updateBlobLeadStatus } from '@/lib/blob-leads'
 
 export async function GET(req: NextRequest) {
   const session = getAdminSessionFromRequest(req)
@@ -25,7 +26,15 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     const noTable = error.message.includes('does not exist') || (error as { code?: string }).code === '42P01'
-    return NextResponse.json({ error: error.message, noTable }, { status: noTable ? 404 : 500 })
+    try {
+      const blobLeads = await listBlobLeads({ estado, limit })
+      return NextResponse.json(blobLeads)
+    } catch (blobError) {
+      return NextResponse.json(
+        { error: error.message, fallbackError: String(blobError), noTable },
+        { status: noTable ? 404 : 500 }
+      )
+    }
   }
 
   return NextResponse.json(data ?? [])
@@ -41,6 +50,10 @@ export async function PATCH(req: NextRequest) {
   const supabase = createServiceClient()
   const { error } = await supabase.from('leads').update({ estado }).eq('id', id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    const updated = await updateBlobLeadStatus(id, estado)
+    if (updated) return NextResponse.json({ ok: true })
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

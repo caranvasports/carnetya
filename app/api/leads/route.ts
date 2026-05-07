@@ -3,6 +3,8 @@ import { z } from 'zod'
 import nodemailer from 'nodemailer'
 import { createServiceClient } from '@/lib/supabase/server'
 import { ensureLeadsTable } from '@/lib/db-setup'
+import { saveBlobLead } from '@/lib/blob-leads'
+import { getCiudadBySlug } from '@/data/cities'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'carnetyainfo@gmail.com'
 
@@ -153,9 +155,10 @@ export async function POST(req: NextRequest) {
   // Guardar en Supabase con auto-creación de tabla si no existe
   let leadId: string | null = null
   let dbError: unknown = null
+  let ciudadId: string | null = null
   try {
     const supabase = createServiceClient()
-    const ciudadId = await findCiudadId(supabase, ciudadSlug)
+    ciudadId = await findCiudadId(supabase, ciudadSlug)
 
     const leadPayload = {
       ...rest,
@@ -202,6 +205,31 @@ export async function POST(req: NextRequest) {
   } catch (dbErr) {
     dbError = dbErr
     console.warn('[CarnetYa] Error guardando lead en BD:', dbErr)
+  }
+
+  if (!leadId) {
+    try {
+      const ciudad = getCiudadBySlug(ciudadSlug)
+      const blobLead = await saveBlobLead({
+        ...rest,
+        ciudad_id: ciudadId,
+        ciudad_slug: ciudadSlug,
+        ciudad: ciudad ? { nombre: ciudad.nombre, slug: ciudad.slug } : { nombre: ciudadSlug, slug: ciudadSlug },
+        tipo_carnet: tipo_carnet ?? null,
+        notas: tipo_carnet ? `Tipo de carnet solicitado: ${tipo_carnet}` : null,
+        ip_address: ip,
+        utm_source: rest.utm_source ?? null,
+        utm_medium: rest.utm_medium ?? null,
+        utm_campaign: rest.utm_campaign ?? null,
+        fuente_url: rest.fuente_url ?? null,
+      })
+      leadId = blobLead.id
+      dbError = null
+      console.log('[CarnetYa] Lead guardado en Vercel Blob:', leadId)
+    } catch (blobErr) {
+      dbError = blobErr
+      console.error('[CarnetYa] Error guardando lead en Blob:', blobErr)
+    }
   }
 
   // Enviar email — siempre intentamos (no bloqueamos la respuesta si falla)
