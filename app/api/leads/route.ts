@@ -94,6 +94,42 @@ const schema = z.object({
   utm_campaign:      z.string().max(100).optional(),
 })
 
+async function findCiudadId(supabase: ReturnType<typeof createServiceClient>, ciudadSlug: string) {
+  const { data } = await supabase
+    .from('ciudades')
+    .select('id')
+    .eq('slug', ciudadSlug)
+    .maybeSingle()
+
+  return data?.id ?? null
+}
+
+async function assignLeadToAutoescuelas(
+  supabase: ReturnType<typeof createServiceClient>,
+  leadId: string,
+  ciudadId: string | null,
+) {
+  if (!ciudadId) return
+
+  const { data: autoescuelas, error } = await supabase
+    .from('autoescuelas')
+    .select('id, plan')
+    .eq('ciudad_id', ciudadId)
+    .eq('activa', true)
+    .order('destacada', { ascending: false })
+    .limit(3)
+
+  if (error || !autoescuelas?.length) return
+
+  const assignments = autoescuelas.map((autoescuela: { id: string; plan?: string | null }) => ({
+    lead_id: leadId,
+    autoescuela_id: autoescuela.id,
+    precio_lead: autoescuela.plan === 'premium' ? 8 : 5,
+  }))
+
+  await supabase.from('lead_assignments').upsert(assignments, { onConflict: 'lead_id,autoescuela_id' })
+}
+
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '0.0.0.0'
 
@@ -112,20 +148,39 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { ciudad: ciudadSlug, ...rest } = parsed.data
+  const { ciudad: ciudadSlug, tipo_carnet, ...rest } = parsed.data
 
   // Guardar en Supabase con auto-creación de tabla si no existe
   let leadId: string | null = null
   try {
     const supabase = createServiceClient()
+    const ciudadId = await findCiudadId(supabase, ciudadSlug)
+
+    const leadPayload = {
+      ...rest,
+      ciudad_id: ciudadId,
+      tipo_carnet,
+      ip_address: ip,
+    }
 
     const doInsert = () => supabase
       .from('leads')
-      .insert({ ...rest, ciudad: ciudadSlug, ip_address: ip })
+      .insert(leadPayload)
       .select('id')
       .single()
 
     let { data: lead, error: insertError } = await doInsert()
+
+    if (insertError && insertError.message.includes("'tipo_carnet'")) {
+      const { tipo_carnet: _tipoCarnet, ...payloadWithoutTipoCarnet } = leadPayload
+      const retry = await supabase
+        .from('leads')
+        .insert(payloadWithoutTipoCarnet)
+        .select('id')
+        .single()
+      lead = retry.data
+      insertError = retry.error
+    }
 
     // Si la tabla no existe, crearla y reintentar
     if (insertError && ((insertError as { code?: string }).code === '42P01' || insertError.message.includes('does not exist'))) {
@@ -133,9 +188,15 @@ export async function POST(req: NextRequest) {
       await ensureLeadsTable()
       const retry = await doInsert()
       lead = retry.data
+      insertError = retry.error
     }
 
-    if (lead) leadId = lead.id
+    if (insertError) throw insertError
+
+    if (lead) {
+      leadId = lead.id
+      await assignLeadToAutoescuelas(supabase, lead.id, ciudadId)
+    }
   } catch (dbErr) {
     console.warn('[CarnetYa] Error guardando lead en BD:', dbErr)
   }

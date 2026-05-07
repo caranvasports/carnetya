@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceClient()
   let query = supabase
     .from('leads')
-    .select('*')
+    .select('*, ciudad:ciudades(nombre, slug)')
     .order('created_at', { ascending: false })
     .limit(limit)
 

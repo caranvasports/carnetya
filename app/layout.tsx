@@ -23,15 +23,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         {/* Google Ads */}
-        <script
-          async
-          src="https://www.googletagmanager.com/gtag/js?id=AW-18145874968"
-        />
+        <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18145874968"></script>
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', 'AW-18145874968');`,
+            __html: `
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'AW-18145874968');
+`,
           }}
-        />
+        ></script>
       </head>
       <body>
         {children}

@@ -15,6 +15,7 @@ type Lead = {
   estado: string
   utm_source: string | null
   ciudad_id: string | null
+  ciudad?: { nombre?: string | null; slug?: string | null } | null
   created_at: string
 }
 
@@ -249,6 +250,7 @@ export default function AdminLeadsPage() {
                       <td className="px-5 py-4">
                         <div className="font-medium text-white">{lead.nombre}</div>
                         <div className="text-xs text-gray-500 mt-0.5 flex gap-2">
+                          {lead.ciudad?.nombre && <span>{lead.ciudad.nombre}</span>}
                           {lead.edad && <span>{lead.edad} años</span>}
                           {lead.tiene_experiencia && <span>· Con experiencia</span>}
                           {lead.urgencia === 'rapido' && <span className="text-orange-400">· Urgente</span>}
