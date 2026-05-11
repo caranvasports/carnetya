@@ -28,6 +28,8 @@ export default function AdminAutoescuelasClient({ initialAutoescuelas }: { initi
   const [search, setSearch] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState({ nombre: '', email: '', ciudad_slug: '', telefono: '', contacto_nombre: '', web: '' })
+  const [formError, setFormError] = useState<string | null>(null)
+  const [formSaving, setFormSaving] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -40,17 +42,21 @@ export default function AdminAutoescuelasClient({ initialAutoescuelas }: { initi
 
   async function createAutoescuela(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
+    setFormError(null)
+    setFormSaving(true)
     const res = await fetch('/api/admin/autoescuelas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...form, marcada: true }),
     })
-    setLoading(false)
+    setFormSaving(false)
     if (res.ok) {
       setForm({ nombre: '', email: '', ciudad_slug: '', telefono: '', contacto_nombre: '', web: '' })
       setFormOpen(false)
       load()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setFormError(data.error ?? `Error ${res.status}`)
     }
   }
 
@@ -123,17 +129,47 @@ export default function AdminAutoescuelasClient({ initialAutoescuelas }: { initi
       </div>
 
       {formOpen && (
-        <form onSubmit={createAutoescuela} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6 grid md:grid-cols-3 gap-4">
-          <input required placeholder="Nombre autoescuela" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
-          <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
-          <select required value={form.ciudad_slug} onChange={(e) => setForm({ ...form, ciudad_slug: e.target.value })} className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white">
-            <option value="">Ciudad</option>
-            {CIUDADES.map((c) => <option key={c.slug} value={c.slug}>{c.nombre}</option>)}
-          </select>
-          <input placeholder="Teléfono" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
-          <input placeholder="Persona de contacto" value={form.contacto_nombre} onChange={(e) => setForm({ ...form, contacto_nombre: e.target.value })} className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
-          <input placeholder="Web" value={form.web} onChange={(e) => setForm({ ...form, web: e.target.value })} className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
-          <button disabled={loading} className="md:col-span-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50">Guardar autoescuela</button>
+        <form onSubmit={createAutoescuela} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6 space-y-4">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-xs text-gray-400 mb-1">Nombre autoescuela *</label>
+              <input required placeholder="Autoescuela Valencia" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Ciudad *</label>
+              <select required value={form.ciudad_slug} onChange={(e) => setForm({ ...form, ciudad_slug: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white">
+                <option value="">Seleccionar...</option>
+                {CIUDADES.map((c) => <option key={c.slug} value={c.slug}>{c.nombre}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Email *</label>
+              <input required type="email" placeholder="info@autoescuela.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Teléfono</label>
+              <input placeholder="+34 600 000 000" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Persona de contacto</label>
+              <input placeholder="Ana García" value={form.contacto_nombre} onChange={(e) => setForm({ ...form, contacto_nombre: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Web</label>
+              <input placeholder="https://..." value={form.web} onChange={(e) => setForm({ ...form, web: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white" />
+            </div>
+          </div>
+          {formError && (
+            <div className="flex items-start gap-2 text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-xl px-4 py-3">
+              <span className="shrink-0 mt-0.5">✕</span> {formError}
+            </div>
+          )}
+          <div className="flex gap-3">
+            <button type="submit" disabled={formSaving} className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-5 py-2 text-sm font-semibold disabled:opacity-50 flex items-center gap-2">
+              {formSaving ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Guardando...</> : <><Plus className="w-3.5 h-3.5" /> Guardar autoescuela</>}
+            </button>
+            <button type="button" onClick={() => { setFormOpen(false); setFormError(null) }} className="bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl px-4 py-2 text-sm">Cancelar</button>
+          </div>
         </form>
       )}
 

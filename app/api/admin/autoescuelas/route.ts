@@ -72,9 +72,8 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const parsed = createSchema.safeParse(await req.json())
-  if (!parsed.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.errors.map((e) => e.message).join(', ') }, { status: 400 })
 
-  await ensureLeadsTable()
   const supabase = createServiceClient()
   const { data: ciudad } = await supabase
     .from('ciudades')
@@ -82,7 +81,7 @@ export async function POST(req: NextRequest) {
     .eq('slug', parsed.data.ciudad_slug)
     .maybeSingle()
 
-  if (!ciudad) return NextResponse.json({ error: 'Ciudad no encontrada' }, { status: 404 })
+  if (!ciudad) return NextResponse.json({ error: 'Ciudad no encontrada. Verifica el slug.' }, { status: 404 })
 
   const baseSlug = slugify(`${parsed.data.nombre}-${ciudad.slug}`)
   let slug = baseSlug
@@ -93,27 +92,42 @@ export async function POST(req: NextRequest) {
     slug = `${baseSlug}-${attempt++}`
   }
 
-  const { data, error } = await supabase
-    .from('autoescuelas')
-    .insert({
+  // Try full insert with all columns first; if new columns are missing fall back to base schema
+  const fullPayload = {
+    ciudad_id: ciudad.id,
+    nombre: parsed.data.nombre,
+    slug,
+    email: parsed.data.email,
+    telefono: parsed.data.telefono || null,
+    contacto_nombre: parsed.data.contacto_nombre || null,
+    web: parsed.data.web || null,
+    captacion_marcada: parsed.data.marcada,
+    captacion_estado: parsed.data.marcada ? 'pendiente' : 'sin_marcar',
+    activa: true,
+    plan: 'free',
+    servicios: ['Permiso B'],
+  }
+
+  let result = await supabase.from('autoescuelas').insert(fullPayload).select('id').single()
+
+  // If new columns don't exist yet, insert with only base-schema columns
+  if (result.error && (result.error.code === '42703' || result.error.message?.includes('column'))) {
+    const basePayload = {
       ciudad_id: ciudad.id,
       nombre: parsed.data.nombre,
       slug,
       email: parsed.data.email,
       telefono: parsed.data.telefono || null,
-      contacto_nombre: parsed.data.contacto_nombre || null,
       web: parsed.data.web || null,
-      captacion_marcada: parsed.data.marcada,
-      captacion_estado: parsed.data.marcada ? 'pendiente' : 'sin_marcar',
       activa: true,
       plan: 'free',
       servicios: ['Permiso B'],
-    })
-    .select('id')
-    .single()
+    }
+    result = await supabase.from('autoescuelas').insert(basePayload).select('id').single()
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, id: data.id })
+  if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
+  return NextResponse.json({ ok: true, id: result.data.id })
 }
 
 export async function PATCH(req: NextRequest) {
