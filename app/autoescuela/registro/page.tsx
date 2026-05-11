@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Car } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -19,6 +19,15 @@ export default function AutoescuelaRegistroPage() {
     password: '',
     telefono: '',
   })
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
+    setForm((prev) => ({
+      ...prev,
+      email: searchParams.get('email') ?? prev.email,
+      nombre_autoescuela: searchParams.get('autoescuela') ?? prev.nombre_autoescuela,
+    }))
+  }, [])
 
   function updateField(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))

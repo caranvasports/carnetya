@@ -4,6 +4,17 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'carnetyainfo@gmail.com'
 
+function slugify(text: string) {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+}
+
 async function sendEmail(to: string, subject: string, html: string) {
   const gmailPass = process.env.GMAIL_APP_PASSWORD
   if (!gmailPass) return
@@ -41,6 +52,67 @@ export async function POST(req: NextRequest) {
   }
 
   const nombreMostrar = nombre_autoescuela || nombre || email
+
+  let autoescuelaId: string | null = null
+  try {
+    const { data: ciudad } = ciudad_slug
+      ? await supabase.from('ciudades').select('id, slug').eq('slug', ciudad_slug).maybeSingle()
+      : { data: null }
+
+    const { data: existingByEmail } = await supabase
+      .from('autoescuelas')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle()
+
+    if (existingByEmail?.id) {
+      autoescuelaId = existingByEmail.id
+      await supabase.from('autoescuelas').update({
+        registered_at: new Date().toISOString(),
+        captacion_estado: 'registrada',
+        contacto_nombre: nombre ?? null,
+        telefono: telefono ?? null,
+      }).eq('id', autoescuelaId)
+    } else if (ciudad?.id) {
+      const baseSlug = slugify(`${nombreMostrar}-${ciudad.slug}`)
+      let slug = baseSlug
+      let attempt = 2
+      while (true) {
+        const { data: existingSlug } = await supabase.from('autoescuelas').select('id').eq('slug', slug).maybeSingle()
+        if (!existingSlug) break
+        slug = `${baseSlug}-${attempt++}`
+      }
+
+      const { data: created } = await supabase.from('autoescuelas').insert({
+        ciudad_id: ciudad.id,
+        nombre: nombreMostrar,
+        slug,
+        email,
+        telefono: telefono ?? null,
+        contacto_nombre: nombre ?? null,
+        activa: true,
+        verificada: false,
+        plan: 'free',
+        servicios: ['Permiso B'],
+        captacion_marcada: true,
+        captacion_estado: 'registrada',
+        registered_at: new Date().toISOString(),
+      }).select('id').single()
+
+      autoescuelaId = created?.id ?? null
+    }
+
+    await supabase.from('usuarios').upsert({
+      id: data.user.id,
+      role: 'autoescuela',
+      autoescuela_id: autoescuelaId,
+      nombre: nombre ?? nombreMostrar,
+      email,
+      telefono: telefono ?? null,
+    })
+  } catch (e) {
+    console.error('[CarnetYa] Error vinculando autoescuela registrada:', e)
+  }
 
   // Email de bienvenida a la autoescuela
   try {

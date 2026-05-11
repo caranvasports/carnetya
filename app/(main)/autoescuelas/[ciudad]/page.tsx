@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { type Metadata } from 'next'
-import { MapPin, TrendingDown, Star, ChevronRight } from 'lucide-react'
+import { MapPin, TrendingDown, Star, ChevronRight, CheckCircle2, Clock, ShieldCheck, PhoneCall } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { buildMetadata, buildBreadcrumbSchema, buildFAQSchema } from '@/lib/seo'
@@ -88,6 +88,8 @@ export default async function CiudadPage({ params }: Props) {
     { name: ciudadStatic.nombre, url: `/autoescuelas/${ciudadSlug}` },
   ]
 
+  const hayAutoescuelas = (autoescuelas?.length ?? 0) > 0
+
   return (
     <>
       <script
@@ -116,21 +118,44 @@ export default async function CiudadPage({ params }: Props) {
               <h1 className="text-4xl font-black mb-3">
                 Autoescuelas en {ciudadStatic.nombre}
               </h1>
-              <p className="text-blue-100 text-lg mb-6">
-                Compara las {autoescuelas?.length ?? 0}+ mejores autoescuelas de {ciudadStatic.nombre}.
-                Precios desde <strong className="text-white">600€</strong>, valoraciones reales y presupuestos gratis.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                {[
-                  { icon: Star, text: `Precio medio: ${formatPrice(precioMedio)}` },
-                  { icon: TrendingDown, text: `${autoescuelas?.length ?? 0} autoescuelas` },
-                ].map(({ icon: Icon, text }) => (
-                  <div key={text} className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2">
-                    <Icon className="w-4 h-4" />
-                    <span className="text-sm font-medium">{text}</span>
+              {hayAutoescuelas ? (
+                <>
+                  <p className="text-blue-100 text-lg mb-6">
+                    Compara las <strong className="text-white">{autoescuelas!.length}</strong> mejores autoescuelas de {ciudadStatic.nombre}.
+                    Valoraciones reales y presupuestos gratis.
+                  </p>
+                  <div className="flex flex-wrap gap-4">
+                    {[
+                      { icon: Star, text: `Precio medio: ${formatPrice(precioMedio)}` },
+                      { icon: TrendingDown, text: `${autoescuelas!.length} autoescuelas` },
+                    ].map(({ icon: Icon, text }) => (
+                      <div key={text} className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2">
+                        <Icon className="w-4 h-4" />
+                        <span className="text-sm font-medium">{text}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-blue-100 text-lg mb-6">
+                    Cuéntanos qué carnet necesitas y te enviamos <strong className="text-white">presupuestos gratis</strong> de autoescuelas en {ciudadStatic.nombre}.
+                    Sin compromiso.
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    {[
+                      { icon: CheckCircle2, text: 'Gratis y sin compromiso' },
+                      { icon: Clock,        text: 'Respuesta en menos de 24h' },
+                      { icon: ShieldCheck,  text: 'Tus datos están seguros' },
+                    ].map(({ icon: Icon, text }) => (
+                      <div key={text} className="flex items-center gap-2 text-blue-100">
+                        <Icon className="w-4 h-4 text-green-300 shrink-0" />
+                        <span className="text-sm">{text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             <div>
@@ -162,58 +187,106 @@ export default async function CiudadPage({ params }: Props) {
         </div>
       </div>
 
-      {/* ──── LISTADO PRINCIPAL ──── */}
-      <section className="py-10">
-        <div className="container-main">
-          <div className="grid lg:grid-cols-3 gap-8">
-            {/* Lista */}
-            <div className="lg:col-span-2">
-              <SchoolList
-                autoescuelas={autoescuelas ?? []}
-                ciudadSlug={ciudadSlug}
-              />
+      {/* ──── CONTENIDO PRINCIPAL ──── */}
+      {hayAutoescuelas ? (
+        /* Con autoescuelas: comparador + sidebar */
+        <section className="py-10">
+          <div className="container-main">
+            <div className="grid lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2">
+                <SchoolList
+                  autoescuelas={autoescuelas!}
+                  ciudadSlug={ciudadSlug}
+                />
+              </div>
+              <aside className="space-y-6">
+                <div className="card p-6">
+                  <h2 className="font-bold text-gray-900 mb-1">¿Cuál te conviene?</h2>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Rellena el formulario y recibe hasta 3 presupuestos personalizados gratis.
+                  </p>
+                  <LeadForm defaultCiudad={ciudadSlug} />
+                </div>
+                <div className="card p-6">
+                  <h3 className="font-bold text-gray-900 mb-3">
+                    Precio carnet en {ciudadStatic.nombre}
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    {[
+                      { label: 'Precio mínimo', value: '580€' },
+                      { label: 'Precio medio', value: formatPrice(precioMedio) },
+                      { label: 'Precio máximo', value: '1.200€' },
+                      { label: 'Clase práctica', value: '25€ – 35€' },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex justify-between">
+                        <span className="text-gray-500">{label}</span>
+                        <span className="font-semibold">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Link
+                    href={`/precio-carnet-conducir/${ciudadSlug}`}
+                    className="mt-4 text-sm text-brand-600 hover:underline block"
+                  >
+                    Guía completa de precios →
+                  </Link>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </section>
+      ) : (
+        /* Sin autoescuelas: sección conversión */
+        <section className="py-14 bg-gray-50">
+          <div className="container-main max-w-5xl">
+            {/* Aviso amable */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-10 flex items-start gap-3">
+              <PhoneCall className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">
+                <strong>Todavía no tenemos autoescuelas verificadas en {ciudadStatic.nombre}.</strong>{' '}
+                Déjanos tus datos y te avisamos en cuanto tengamos opciones disponibles, o te conectamos con autoescuelas de la zona.
+              </p>
             </div>
 
-            {/* Sidebar */}
-            <aside className="space-y-6">
-              {/* CTA form repetido */}
-              <div className="card p-6">
-                <h2 className="font-bold text-gray-900 mb-1">¿Cuál te conviene?</h2>
-                <p className="text-sm text-gray-500 mb-4">
-                  Rellena el formulario y recibe hasta 3 presupuestos personalizados gratis.
+            <div className="grid md:grid-cols-2 gap-10 items-start">
+              {/* Beneficios */}
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Recibe presupuestos gratis en {ciudadStatic.nombre}
+                </h2>
+                <p className="text-gray-500 mb-8">
+                  Rellena el formulario en menos de 2 minutos y te enviamos las mejores opciones adaptadas a ti.
                 </p>
-                <LeadForm defaultCiudad={ciudadSlug} />
+                <ul className="space-y-4">
+                  {[
+                    { icon: CheckCircle2, title: 'Comparamos por ti', desc: 'Sin tener que llamar a cada autoescuela una por una.' },
+                    { icon: Clock,        title: 'Respuesta rápida',  desc: 'Te contactamos en menos de 24 horas con opciones reales.' },
+                    { icon: ShieldCheck,  title: 'Sin compromiso',    desc: 'Pides información, y decides tú con libertad total.' },
+                    { icon: Star,         title: 'Solo lo mejor',     desc: 'Trabajamos con autoescuelas verificadas y bien valoradas.' },
+                  ].map(({ icon: Icon, title, desc }) => (
+                    <li key={title} className="flex items-start gap-3">
+                      <span className="mt-0.5 w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                        <Icon className="w-4 h-4 text-brand-600" />
+                      </span>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">{title}</p>
+                        <p className="text-gray-500 text-sm">{desc}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </div>
 
-              {/* Precio medio */}
-              <div className="card p-6">
-                <h3 className="font-bold text-gray-900 mb-3">
-                  Precio carnet en {ciudadStatic.nombre}
-                </h3>
-                <div className="space-y-2 text-sm">
-                  {[
-                    { label: 'Precio mínimo', value: '580€' },
-                    { label: 'Precio medio', value: formatPrice(precioMedio) },
-                    { label: 'Precio máximo', value: '1.200€' },
-                    { label: 'Clase práctica', value: '25€ – 35€' },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="flex justify-between">
-                      <span className="text-gray-500">{label}</span>
-                      <span className="font-semibold">{value}</span>
-                    </div>
-                  ))}
-                </div>
-                <Link
-                  href={`/precio-carnet-conducir/${ciudadSlug}`}
-                  className="mt-4 text-sm text-brand-600 hover:underline block"
-                >
-                  Guía completa de precios →
-                </Link>
+              {/* Formulario */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <p className="text-sm font-semibold text-brand-600 mb-1">Es gratis y tarda 2 minutos</p>
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Solicita tu presupuesto</h3>
+                <LeadForm defaultCiudad={ciudadSlug} />
               </div>
-            </aside>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ──── CONTENIDO SEO ──── */}
       <section className="py-10 border-t border-gray-100">

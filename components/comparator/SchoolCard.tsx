@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { MapPin, Phone, CheckCircle, ArrowRight, Award } from 'lucide-react'
+import { MapPin, CheckCircle, ArrowRight, Award } from 'lucide-react'
 import { type Autoescuela } from '@/types'
 import { formatPrice } from '@/lib/utils'
 import StarRating from '@/components/ui/StarRating'
 import Badge from '@/components/ui/Badge'
+import ContactReveal from './ContactReveal'
 
 interface SchoolCardProps {
   autoescuela: Autoescuela
@@ -119,15 +120,13 @@ export default function SchoolCard({ autoescuela, ciudadSlug, position }: School
         </div>
 
         <div className="flex flex-col gap-2 w-full">
-          {telefono && (
-            <a
-              href={`tel:${telefono}`}
-              className="flex items-center justify-center gap-2 text-sm text-gray-600 hover:text-brand-600 transition-colors"
-            >
-              <Phone className="w-4 h-4" />
-              {telefono}
-            </a>
-          )}
+          <ContactReveal
+            autoescuelaId={autoescuela.id}
+            autoescuelaNombre={nombre}
+            telefono={telefono ?? null}
+            email={autoescuela.email}
+            ciudadSlug={ciudadSlug}
+          />
           <Link href={href} className="btn-primary text-sm py-2.5">
             Ver detalles
             <ArrowRight className="w-4 h-4" />
@@ -136,14 +135,17 @@ export default function SchoolCard({ autoescuela, ciudadSlug, position }: School
       </div>
 
       {/* Mobile CTA */}
-      <div className="sm:hidden flex gap-2">
-        {telefono && (
-          <a href={`tel:${telefono}`} className="flex-1 btn-secondary text-sm py-2.5">
-            <Phone className="w-4 h-4" />
-            Llamar
-          </a>
+      <div className="sm:hidden flex flex-col gap-2">
+        {(telefono || autoescuela.email) && (
+          <ContactReveal
+            autoescuelaId={autoescuela.id}
+            autoescuelaNombre={nombre}
+            telefono={telefono ?? null}
+            email={autoescuela.email}
+            ciudadSlug={ciudadSlug}
+          />
         )}
-        <Link href={href} className="flex-1 btn-primary text-sm py-2.5">
+        <Link href={href} className="btn-primary text-sm py-2.5">
           Ver más
           <ArrowRight className="w-4 h-4" />
         </Link>

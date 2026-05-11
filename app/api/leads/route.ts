@@ -126,7 +126,7 @@ async function assignLeadToAutoescuelas(
   const assignments = autoescuelas.map((autoescuela: { id: string; plan?: string | null }) => ({
     lead_id: leadId,
     autoescuela_id: autoescuela.id,
-    precio_lead: autoescuela.plan === 'premium' ? 8 : 5,
+    precio_lead: autoescuela.plan === 'premium' ? 4 : autoescuela.plan === 'basic' ? 8 : 0,
   }))
 
   await supabase.from('lead_assignments').upsert(assignments, { onConflict: 'lead_id,autoescuela_id' })

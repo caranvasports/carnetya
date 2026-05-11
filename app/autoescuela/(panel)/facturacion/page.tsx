@@ -21,6 +21,8 @@ export default function FacturacionPage() {
   const [asignaciones, setAsignaciones] = useState<LeadAsignacion[]>([])
   const [plan, setPlan] = useState<string>('free')
   const [loading, setLoading] = useState(true)
+  const [billingLoading, setBillingLoading] = useState<string | null>(null)
+  const [billingError, setBillingError] = useState('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -58,6 +60,24 @@ export default function FacturacionPage() {
     return fecha.getMonth() === ahora.getMonth() && fecha.getFullYear() === ahora.getFullYear()
   }).length
 
+  async function openBilling(action: 'checkout' | 'portal') {
+    setBillingLoading(action)
+    setBillingError('')
+    const endpoint = action === 'checkout' ? '/api/autoescuela/stripe/checkout' : '/api/autoescuela/stripe/portal'
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: action === 'checkout' ? JSON.stringify({ plan: 'basic' }) : undefined,
+    })
+    const data = await res.json().catch(() => ({}))
+    setBillingLoading(null)
+    if (!res.ok || !data.url) {
+      setBillingError(data.error ?? 'No se pudo abrir Stripe')
+      return
+    }
+    window.location.href = data.url
+  }
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
@@ -87,6 +107,27 @@ export default function FacturacionPage() {
         <div className="card p-5">
           <p className="text-sm text-gray-500 mb-1">Gasto total en leads</p>
           <p className="text-2xl font-black text-gray-900">{formatPrice(totalPagado)}</p>
+        </div>
+      </div>
+
+      <div className="card p-5 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 className="font-bold text-gray-900">Plan Basic</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            29€/mes y leads a 5€. El plan avanzado con leads garantizados estará disponible próximamente.
+          </p>
+          {billingError && <p className="text-sm text-red-500 mt-2">{billingError}</p>}
+        </div>
+        <div className="flex gap-2">
+          {plan === 'free' ? (
+            <button onClick={() => openBilling('checkout')} disabled={!!billingLoading} className="btn-primary text-sm disabled:opacity-50">
+              {billingLoading === 'checkout' ? 'Abriendo Stripe...' : 'Contratar Basic'}
+            </button>
+          ) : (
+            <button onClick={() => openBilling('portal')} disabled={!!billingLoading} className="btn-secondary text-sm disabled:opacity-50">
+              {billingLoading === 'portal' ? 'Abriendo Stripe...' : 'Gestionar suscripción'}
+            </button>
+          )}
         </div>
       </div>
 

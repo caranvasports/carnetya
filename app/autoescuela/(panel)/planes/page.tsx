@@ -38,7 +38,7 @@ const PLANES = [
     destacado: false,
     features: [
       'Todo lo del plan Free',
-      'Hasta 20 leads/mes (5€/lead)',
+      'Hasta 20 leads/mes (8€/lead)',
       'Panel de gestión de alumnos',
       'Seguimiento de fases del alumno',
       'Soporte por email',
@@ -49,23 +49,24 @@ const PLANES = [
     ctaClass: 'btn-secondary w-full justify-center',
   },
   {
-    nombre: 'Premium',
-    precio: '79',
-    descripcion: 'Para autoescuelas que quieren dominar su ciudad',
+    nombre: 'Avanzado',
+    precio: 'Próx.',
+    descripcion: 'Para autoescuelas que quieren leads garantizados',
     color: 'border-yellow-400 shadow-lg shadow-yellow-100',
     badgeColor: 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white',
     destacado: true,
     features: [
       'Todo lo del plan Basic',
-      'Hasta 60 leads/mes (8€/lead)',
+      'Leads garantizados por ciudad',
+      'Coste por lead más económico',
       'Leads prioritarios y exclusivos',
       'Posición destacada en el comparador',
       'Calendario de clases',
       'Gestión de facturación',
       'Soporte prioritario',
     ],
-    cta: '¡Quiero ser Premium!',
-    ctaHref: '/autoescuela/registro?plan=premium',
+    cta: 'Todavía no disponible',
+    ctaHref: '/autoescuela/registro',
     ctaClass: 'btn-primary w-full justify-center',
   },
 ]
@@ -104,8 +105,8 @@ export default function AutoescuelaPlanesPage() {
                     {plan.nombre}
                   </span>
                   <div className="flex items-end gap-1 mb-1">
-                    <span className="text-4xl font-black text-gray-900">{plan.precio}€</span>
-                    {plan.precio !== '0' && <span className="text-gray-500 mb-1">/mes</span>}
+                    <span className="text-4xl font-black text-gray-900">{plan.precio === 'Próx.' ? plan.precio : `${plan.precio}€`}</span>
+                    {plan.precio !== '0' && plan.precio !== 'Próx.' && <span className="text-gray-500 mb-1">/mes</span>}
                     {plan.precio === '0' && <span className="text-gray-500 mb-1">/siempre</span>}
                   </div>
                   <p className="text-sm text-gray-500">{plan.descripcion}</p>

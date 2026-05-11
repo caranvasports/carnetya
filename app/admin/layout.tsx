@@ -1,12 +1,13 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Users, Building2, Settings, BarChart3, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Settings, BarChart3, LogOut, Mail } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-auth'
 
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { label: 'Leads',     href: '/admin/leads', icon: Users },
   { label: 'Autoescuelas', href: '/admin/autoescuelas', icon: Building2 },
+  { label: 'Emails', href: '/admin/emails', icon: Mail },
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
   { label: 'Config',    href: '/admin/config', icon: Settings },
 ]
