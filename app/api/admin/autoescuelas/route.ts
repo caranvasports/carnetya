@@ -4,6 +4,62 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getAdminSessionFromRequest } from '@/lib/admin-auth'
 import { ensureLeadsTable } from '@/lib/db-setup'
 import { renderTemplate, sendEmail } from '@/lib/email'
+import { CIUDADES } from '@/data/cities'
+
+// Mapping provincia → comunidad autónoma (needed when auto-creating cities)
+const PROVINCIA_CCAA: Record<string, string> = {
+  Madrid: 'Comunidad de Madrid',
+  Barcelona: 'Cataluña', Girona: 'Cataluña', Lleida: 'Cataluña', Tarragona: 'Cataluña',
+  Valencia: 'Comunidad Valenciana', Alicante: 'Comunidad Valenciana', Castellón: 'Comunidad Valenciana',
+  Sevilla: 'Andalucía', Cádiz: 'Andalucía', Huelva: 'Andalucía', Córdoba: 'Andalucía',
+  Jaén: 'Andalucía', Almería: 'Andalucía', Granada: 'Andalucía', Málaga: 'Andalucía',
+  Zaragoza: 'Aragón', Huesca: 'Aragón', Teruel: 'Aragón',
+  Vizcaya: 'País Vasco', Guipúzcoa: 'País Vasco', Álava: 'País Vasco',
+  Navarra: 'Comunidad Foral de Navarra',
+  'La Rioja': 'La Rioja',
+  Murcia: 'Región de Murcia',
+  Asturias: 'Principado de Asturias',
+  Cantabria: 'Cantabria',
+  Burgos: 'Castilla y León', Valladolid: 'Castilla y León', León: 'Castilla y León',
+  Salamanca: 'Castilla y León', Ávila: 'Castilla y León', Segovia: 'Castilla y León',
+  Soria: 'Castilla y León', Zamora: 'Castilla y León', Palencia: 'Castilla y León',
+  Toledo: 'Castilla-La Mancha', 'Ciudad Real': 'Castilla-La Mancha', Cuenca: 'Castilla-La Mancha',
+  Guadalajara: 'Castilla-La Mancha', Albacete: 'Castilla-La Mancha',
+  Badajoz: 'Extremadura', Cáceres: 'Extremadura',
+  'Las Palmas': 'Canarias', 'Santa Cruz de Tenerife': 'Canarias',
+  Baleares: 'Islas Baleares',
+  'A Coruña': 'Galicia', Lugo: 'Galicia', Ourense: 'Galicia', Pontevedra: 'Galicia',
+  Ceuta: 'Ciudad Autónoma de Ceuta',
+  Melilla: 'Ciudad Autónoma de Melilla',
+}
+
+async function getOrCreateCiudad(supabase: ReturnType<typeof createServiceClient>, slug: string) {
+  // Try to find in DB first
+  const { data: existing } = await supabase
+    .from('ciudades').select('id, nombre, slug').eq('slug', slug).maybeSingle()
+  if (existing) return existing
+
+  // Look up from static cities list and auto-create
+  const ciudadStatic = CIUDADES.find((c) => c.slug === slug)
+  if (!ciudadStatic) return null
+
+  const comunidad = PROVINCIA_CCAA[ciudadStatic.provincia] ?? ciudadStatic.provincia
+  const { data: created, error } = await supabase
+    .from('ciudades')
+    .insert({
+      nombre: ciudadStatic.nombre,
+      slug: ciudadStatic.slug,
+      provincia: ciudadStatic.provincia,
+      comunidad_autonoma: comunidad,
+      poblacion: ciudadStatic.poblacion,
+      activa: true,
+    })
+    .select('id, nombre, slug')
+    .single()
+
+  if (error) return null
+  return created
+}
 
 function slugify(text: string) {
   return text
@@ -75,13 +131,9 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.errors.map((e) => e.message).join(', ') }, { status: 400 })
 
   const supabase = createServiceClient()
-  const { data: ciudad } = await supabase
-    .from('ciudades')
-    .select('id, nombre, slug')
-    .eq('slug', parsed.data.ciudad_slug)
-    .maybeSingle()
+  const ciudad = await getOrCreateCiudad(supabase, parsed.data.ciudad_slug)
 
-  if (!ciudad) return NextResponse.json({ error: 'Ciudad no encontrada. Verifica el slug.' }, { status: 404 })
+  if (!ciudad) return NextResponse.json({ error: `Ciudad "${parsed.data.ciudad_slug}" no encontrada. Verifica que esté en la lista.` }, { status: 404 })
 
   const baseSlug = slugify(`${parsed.data.nombre}-${ciudad.slug}`)
   let slug = baseSlug
