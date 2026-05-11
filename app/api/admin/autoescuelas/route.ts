@@ -127,44 +127,29 @@ export async function POST(req: NextRequest) {
   const session = getAdminSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const parsed = createSchema.safeParse(await req.json())
+  let body: unknown
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
+
+  const parsed = createSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.errors.map((e) => e.message).join(', ') }, { status: 400 })
 
-  const supabase = createServiceClient()
-  const ciudad = await getOrCreateCiudad(supabase, parsed.data.ciudad_slug)
+  try {
+    const supabase = createServiceClient()
+    const ciudad = await getOrCreateCiudad(supabase, parsed.data.ciudad_slug)
 
-  if (!ciudad) return NextResponse.json({ error: `Ciudad "${parsed.data.ciudad_slug}" no encontrada. Verifica que esté en la lista.` }, { status: 404 })
+    if (!ciudad) return NextResponse.json({ error: `Ciudad "${parsed.data.ciudad_slug}" no encontrada.` }, { status: 404 })
 
-  const baseSlug = slugify(`${parsed.data.nombre}-${ciudad.slug}`)
-  let slug = baseSlug
-  let attempt = 2
-  while (true) {
-    const { data: existing } = await supabase.from('autoescuelas').select('id').eq('slug', slug).maybeSingle()
-    if (!existing) break
-    slug = `${baseSlug}-${attempt++}`
-  }
+    const baseSlug = slugify(`${parsed.data.nombre}-${ciudad.slug}`)
+    let slug = baseSlug
+    // Cap at 10 attempts to avoid infinite loop
+    for (let attempt = 2; attempt <= 10; attempt++) {
+      const { data: existing } = await supabase.from('autoescuelas').select('id').eq('slug', slug).maybeSingle()
+      if (!existing) break
+      slug = `${baseSlug}-${attempt}`
+    }
 
-  // Try full insert with all columns first; if new columns are missing fall back to base schema
-  const fullPayload = {
-    ciudad_id: ciudad.id,
-    nombre: parsed.data.nombre,
-    slug,
-    email: parsed.data.email,
-    telefono: parsed.data.telefono || null,
-    contacto_nombre: parsed.data.contacto_nombre || null,
-    web: parsed.data.web || null,
-    captacion_marcada: parsed.data.marcada,
-    captacion_estado: parsed.data.marcada ? 'pendiente' : 'sin_marcar',
-    activa: true,
-    plan: 'free',
-    servicios: ['Permiso B'],
-  }
-
-  let result = await supabase.from('autoescuelas').insert(fullPayload).select('id').single()
-
-  // If new columns don't exist yet, insert with only base-schema columns
-  if (result.error && (result.error.code === '42703' || result.error.message?.includes('column'))) {
-    const basePayload = {
+    // Build payload — always use base columns; add captacion columns only if they likely exist
+    const payload: Record<string, unknown> = {
       ciudad_id: ciudad.id,
       nombre: parsed.data.nombre,
       slug,
@@ -175,11 +160,30 @@ export async function POST(req: NextRequest) {
       plan: 'free',
       servicios: ['Permiso B'],
     }
-    result = await supabase.from('autoescuelas').insert(basePayload).select('id').single()
-  }
 
-  if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, id: result.data.id })
+    // Try inserting with the extra captacion columns first
+    const withExtra = {
+      ...payload,
+      contacto_nombre: parsed.data.contacto_nombre || null,
+      captacion_marcada: parsed.data.marcada,
+      captacion_estado: parsed.data.marcada ? 'pendiente' : 'sin_marcar',
+    }
+
+    let { data: inserted, error } = await supabase.from('autoescuelas').insert(withExtra).select('id').single()
+
+    // Fallback: retry without extra columns if they don't exist yet
+    if (error && (error.code === '42703' || error.message?.includes('column'))) {
+      const fb = await supabase.from('autoescuelas').insert(payload).select('id').single()
+      inserted = fb.data
+      error = fb.error
+    }
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, id: inserted!.id })
+  } catch (e) {
+    console.error('[POST /api/admin/autoescuelas]', e)
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
 }
 
 export async function PATCH(req: NextRequest) {

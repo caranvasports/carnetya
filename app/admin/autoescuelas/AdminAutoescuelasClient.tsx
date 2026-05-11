@@ -44,19 +44,24 @@ export default function AdminAutoescuelasClient({ initialAutoescuelas }: { initi
     e.preventDefault()
     setFormError(null)
     setFormSaving(true)
-    const res = await fetch('/api/admin/autoescuelas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, marcada: true }),
-    })
-    setFormSaving(false)
-    if (res.ok) {
-      setForm({ nombre: '', email: '', ciudad_slug: '', telefono: '', contacto_nombre: '', web: '' })
-      setFormOpen(false)
-      load()
-    } else {
-      const data = await res.json().catch(() => ({}))
-      setFormError(data.error ?? `Error ${res.status}`)
+    try {
+      const res = await fetch('/api/admin/autoescuelas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, marcada: true }),
+      })
+      if (res.ok) {
+        setForm({ nombre: '', email: '', ciudad_slug: '', telefono: '', contacto_nombre: '', web: '' })
+        setFormOpen(false)
+        load()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setFormError(data.error ?? `Error ${res.status}`)
+      }
+    } catch (err) {
+      setFormError('Error de red. Comprueba la conexión e inténtalo de nuevo.')
+    } finally {
+      setFormSaving(false)
     }
   }
 
