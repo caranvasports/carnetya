@@ -38,6 +38,8 @@ export default function AutoescuelaLeadsPage() {
   const [plan, setPlan] = useState<string>('free')
   const [paypalUrl, setPaypalUrl] = useState('https://www.paypal.com/paypalme/carnetya')
   const [leadPrice, setLeadPrice] = useState('8')
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null)
+  const [emailMsg, setEmailMsg] = useState<{ id: string; ok: boolean; text: string } | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -97,6 +99,29 @@ export default function AutoescuelaLeadsPage() {
     if (nuevoEstado === 'contactado') update.contactado_at = new Date().toISOString()
     await supabase.from('lead_assignments').update(update).eq('id', assignId)
     setAssignments((prev) => prev.map((a) => (a.id === assignId ? { ...a, estado: nuevoEstado } : a)))
+  }
+
+  async function enviarEmail(assignId: string) {
+    setSendingEmail(assignId)
+    setEmailMsg(null)
+    try {
+      const res = await fetch('/api/autoescuela/leads/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignmentId: assignId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setEmailMsg({ id: assignId, ok: true, text: 'Email enviado' })
+        setAssignments((prev) => prev.map((a) => (a.id === assignId ? { ...a, estado: 'contactado' } : a)))
+      } else {
+        setEmailMsg({ id: assignId, ok: false, text: data.error ?? 'Error al enviar' })
+      }
+    } catch {
+      setEmailMsg({ id: assignId, ok: false, text: 'Error de red' })
+    }
+    setSendingEmail(null)
+    setTimeout(() => setEmailMsg(null), 4000)
   }
 
   const isFree = plan === 'free'
@@ -237,14 +262,19 @@ export default function AutoescuelaLeadsPage() {
                         <Phone className="w-4 h-4" />
                         Llamar ahora
                       </a>
-                      <a
-                        href={`mailto:${lead.email}`}
-                        onClick={() => cambiarEstado(a.id, 'contactado')}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 text-sm transition-colors"
+                      <button
+                        onClick={() => enviarEmail(a.id)}
+                        disabled={sendingEmail === a.id}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 text-sm transition-colors disabled:opacity-50"
                       >
                         <Mail className="w-4 h-4" />
-                        Enviar email
-                      </a>
+                        {sendingEmail === a.id ? 'Enviando...' : 'Enviar email'}
+                      </button>
+                      {emailMsg?.id === a.id && (
+                        <span className={`text-xs font-medium ${emailMsg.ok ? 'text-green-600' : 'text-red-500'}`}>
+                          {emailMsg.text}
+                        </span>
+                      )}
                       <select
                         value={a.estado}
                         onChange={(e) => cambiarEstado(a.id, e.target.value)}
