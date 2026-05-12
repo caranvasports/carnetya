@@ -33,32 +33,44 @@ const PROVINCIA_CCAA: Record<string, string> = {
   Melilla: 'Ciudad Autónoma de Melilla',
 }
 
-async function getOrCreateCiudad(supabase: ReturnType<typeof createServiceClient>, slug: string) {
+async function getOrCreateCiudad(supabase: ReturnType<typeof createServiceClient>, slug: string): Promise<{ id: string; nombre: string; slug: string } | { error: string }> {
   // Try to find in DB first
-  const { data: existing } = await supabase
+  const { data: existing, error: selectError } = await supabase
     .from('ciudades').select('id, nombre, slug').eq('slug', slug).maybeSingle()
   if (existing) return existing
+  if (selectError) return { error: `Error buscando ciudad: ${selectError.message}` }
 
-  // Look up from static cities list and auto-create
+  // Look up from static cities list
   const ciudadStatic = CIUDADES.find((c) => c.slug === slug)
-  if (!ciudadStatic) return null
+  if (!ciudadStatic) return { error: `Ciudad con slug "${slug}" no está en la lista de ciudades` }
 
   const comunidad = PROVINCIA_CCAA[ciudadStatic.provincia] ?? ciudadStatic.provincia
-  const { data: created, error } = await supabase
+
+  // Upsert so it's safe even if two requests race each other
+  const { data: created, error: insertError } = await supabase
     .from('ciudades')
-    .insert({
-      nombre: ciudadStatic.nombre,
-      slug: ciudadStatic.slug,
-      provincia: ciudadStatic.provincia,
-      comunidad_autonoma: comunidad,
-      poblacion: ciudadStatic.poblacion,
-      activa: true,
-    })
+    .upsert(
+      {
+        nombre: ciudadStatic.nombre,
+        slug: ciudadStatic.slug,
+        provincia: ciudadStatic.provincia,
+        comunidad_autonoma: comunidad,
+        poblacion: ciudadStatic.poblacion,
+        activa: true,
+      },
+      { onConflict: 'slug', ignoreDuplicates: false }
+    )
     .select('id, nombre, slug')
     .single()
 
-  if (error) return null
-  return created
+  if (insertError) {
+    // Last resort: maybe it was inserted by a concurrent request — try selecting again
+    const { data: retry } = await supabase
+      .from('ciudades').select('id, nombre, slug').eq('slug', slug).maybeSingle()
+    if (retry) return retry
+    return { error: `No se pudo crear la ciudad: ${insertError.message} (code: ${insertError.code})` }
+  }
+  return created!
 }
 
 function slugify(text: string) {
@@ -135,9 +147,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const supabase = createServiceClient()
-    const ciudad = await getOrCreateCiudad(supabase, parsed.data.ciudad_slug)
+    const ciudadResult = await getOrCreateCiudad(supabase, parsed.data.ciudad_slug)
 
-    if (!ciudad) return NextResponse.json({ error: `Ciudad "${parsed.data.ciudad_slug}" no encontrada.` }, { status: 404 })
+    if ('error' in ciudadResult) {
+      return NextResponse.json({ error: ciudadResult.error }, { status: 400 })
+    }
+    const ciudad = ciudadResult
 
     const baseSlug = slugify(`${parsed.data.nombre}-${ciudad.slug}`)
     let slug = baseSlug
