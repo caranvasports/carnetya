@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { sendEmail } from '@/lib/email'
+import nodemailer from 'nodemailer'
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'carnetyainfo@gmail.com'
+
+async function sendEmailWithCC(to: string, subject: string, html: string, cc?: string) {
+  const pass = process.env.GMAIL_APP_PASSWORD
+  if (!pass) {
+    console.error('[send-email] GMAIL_APP_PASSWORD not set')
+    return { sent: false }
+  }
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user: ADMIN_EMAIL, pass },
+  })
+  await transporter.sendMail({
+    from: `CarnetYa <${ADMIN_EMAIL}>`,
+    to,
+    cc: cc ?? undefined,
+    subject,
+    html,
+  })
+  return { sent: true }
+}
 
 export async function POST(req: NextRequest) {
   const supabase = createServiceClient()
@@ -45,7 +69,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Autoescuela no encontrada' }, { status: 404 })
     }
 
-    // Fetch ciudad name if available
+    // Fetch ciudad name and autoescuela email
     let ciudadNombre = ''
     if (lead.ciudad_id) {
       const { data: ciudad } = await supabase
@@ -55,6 +79,14 @@ export async function POST(req: NextRequest) {
         .single()
       ciudadNombre = ciudad?.nombre ?? ''
     }
+
+    // Get autoescuela email for CC
+    const { data: aeExtra } = await supabase
+      .from('autoescuelas')
+      .select('email')
+      .eq('id', autoescuelaId)
+      .single()
+    const autoescuelaEmail = aeExtra?.email as string | undefined
 
     const nombreAlumno = (lead.nombre as string)?.split(' ')[0] ?? 'alumno'
     const nombreAutoescuela = autoescuela.nombre as string
@@ -88,8 +120,8 @@ Un saludo,<br>
 </body>
 </html>`
 
-    // Send the email
-    const result = await sendEmail(lead.email as string, subject, html)
+    // Send the email (with CC to autoescuela so they get confirmation)
+    const result = await sendEmailWithCC(lead.email as string, subject, html, autoescuelaEmail)
 
     // Log to contact_log
     await supabase.from('contact_log').insert({
@@ -113,7 +145,7 @@ Un saludo,<br>
       .update({ estado: 'contactado', contactado_at: new Date().toISOString() })
       .eq('id', assignmentId)
 
-    return NextResponse.json({ ok: true, provider: result.provider })
+    return NextResponse.json({ ok: true, provider: result.provider, sentTo: lead.email })
 
   } catch (err) {
     console.error('[send-email]', err)

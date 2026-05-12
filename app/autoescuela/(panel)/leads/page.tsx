@@ -112,7 +112,7 @@ export default function AutoescuelaLeadsPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setEmailMsg({ id: assignId, ok: true, text: 'Email enviado' })
+        setEmailMsg({ id: assignId, ok: true, text: `Email enviado a ${data.sentTo ?? 'alumno'}` })
         setAssignments((prev) => prev.map((a) => (a.id === assignId ? { ...a, estado: 'contactado' } : a)))
       } else {
         setEmailMsg({ id: assignId, ok: false, text: data.error ?? 'Error al enviar' })
@@ -121,7 +121,7 @@ export default function AutoescuelaLeadsPage() {
       setEmailMsg({ id: assignId, ok: false, text: 'Error de red' })
     }
     setSendingEmail(null)
-    setTimeout(() => setEmailMsg(null), 4000)
+    setTimeout(() => setEmailMsg(null), 8000)
   }
 
   const isFree = plan === 'free'
