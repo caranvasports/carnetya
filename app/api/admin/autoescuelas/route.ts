@@ -35,10 +35,14 @@ const PROVINCIA_CCAA: Record<string, string> = {
 
 async function getOrCreateCiudad(supabase: ReturnType<typeof createServiceClient>, slug: string): Promise<{ id: string; nombre: string; slug: string } | { error: string }> {
   // Try to find in DB first
-  const { data: existing, error: selectError } = await supabase
-    .from('ciudades').select('id, nombre, slug').eq('slug', slug).maybeSingle()
-  if (existing) return existing
-  if (selectError) return { error: `Error buscando ciudad: ${selectError.message}` }
+  let existing: { id: string; nombre: string; slug: string } | null = null
+  try {
+    const res = await supabase.from('ciudades').select('id, nombre, slug').eq('slug', slug).maybeSingle()
+    if (res.data) return res.data
+    if (res.error) return { error: `Error consultando ciudad: ${res.error.message}` }
+  } catch (e) {
+    return { error: `No se puede conectar a la base de datos. Comprueba que el proyecto Supabase esté activo (puede estar pausado en el plan free). Detalle: ${String(e)}` }
+  }
 
   // Look up from static cities list
   const ciudadStatic = CIUDADES.find((c) => c.slug === slug)
@@ -46,31 +50,35 @@ async function getOrCreateCiudad(supabase: ReturnType<typeof createServiceClient
 
   const comunidad = PROVINCIA_CCAA[ciudadStatic.provincia] ?? ciudadStatic.provincia
 
-  // Upsert so it's safe even if two requests race each other
-  const { data: created, error: insertError } = await supabase
-    .from('ciudades')
-    .upsert(
-      {
-        nombre: ciudadStatic.nombre,
-        slug: ciudadStatic.slug,
-        provincia: ciudadStatic.provincia,
-        comunidad_autonoma: comunidad,
-        poblacion: ciudadStatic.poblacion,
-        activa: true,
-      },
-      { onConflict: 'slug', ignoreDuplicates: false }
-    )
-    .select('id, nombre, slug')
-    .single()
+  try {
+    // Upsert so it's safe even if two requests race each other
+    const { data: created, error: insertError } = await supabase
+      .from('ciudades')
+      .upsert(
+        {
+          nombre: ciudadStatic.nombre,
+          slug: ciudadStatic.slug,
+          provincia: ciudadStatic.provincia,
+          comunidad_autonoma: comunidad,
+          poblacion: ciudadStatic.poblacion,
+          activa: true,
+        },
+        { onConflict: 'slug', ignoreDuplicates: false }
+      )
+      .select('id, nombre, slug')
+      .single()
 
-  if (insertError) {
-    // Last resort: maybe it was inserted by a concurrent request — try selecting again
-    const { data: retry } = await supabase
-      .from('ciudades').select('id, nombre, slug').eq('slug', slug).maybeSingle()
-    if (retry) return retry
-    return { error: `No se pudo crear la ciudad: ${insertError.message} (code: ${insertError.code})` }
+    if (insertError) {
+      // Last resort: maybe it was inserted by a concurrent request — try selecting again
+      const { data: retry } = await supabase
+        .from('ciudades').select('id, nombre, slug').eq('slug', slug).maybeSingle()
+      if (retry) return retry
+      return { error: `No se pudo crear la ciudad: ${insertError.message} (code: ${insertError.code})` }
+    }
+    return created!
+  } catch (e) {
+    return { error: `Error de red al crear ciudad. Supabase puede estar pausado. Detalle: ${String(e)}` }
   }
-  return created!
 }
 
 function slugify(text: string) {
