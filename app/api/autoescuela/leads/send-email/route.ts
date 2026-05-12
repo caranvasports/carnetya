@@ -145,7 +145,7 @@ Un saludo,<br>
       .update({ estado: 'contactado', contactado_at: new Date().toISOString() })
       .eq('id', assignmentId)
 
-    return NextResponse.json({ ok: true, provider: result.provider, sentTo: lead.email })
+    return NextResponse.json({ ok: true, sentTo: lead.email })
 
   } catch (err) {
     console.error('[send-email]', err)
