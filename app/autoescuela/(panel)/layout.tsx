@@ -1,15 +1,16 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Users, UserCheck, Calendar, CreditCard, Settings, LogOut, Car } from 'lucide-react'
+import { LayoutDashboard, Users, UserCheck, Calendar, CreditCard, Settings, LogOut, Car, History } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 
 const navItems = [
-  { label: 'Dashboard',   href: '/autoescuela/dashboard', icon: LayoutDashboard },
-  { label: 'Mis leads',   href: '/autoescuela/leads',     icon: Users },
-  { label: 'Alumnos',     href: '/autoescuela/alumnos',   icon: UserCheck },
-  { label: 'Calendario',  href: '/autoescuela/calendario',icon: Calendar },
-  { label: 'Facturación', href: '/autoescuela/facturacion',icon: CreditCard },
-  { label: 'Mi perfil',   href: '/autoescuela/perfil',    icon: Settings },
+  { label: 'Dashboard',   href: '/autoescuela/dashboard',           icon: LayoutDashboard },
+  { label: 'Mis leads',   href: '/autoescuela/leads',               icon: Users },
+  { label: 'Historial',   href: '/autoescuela/historial-contactos', icon: History },
+  { label: 'Alumnos',     href: '/autoescuela/alumnos',             icon: UserCheck },
+  { label: 'Calendario',  href: '/autoescuela/calendario',          icon: Calendar },
+  { label: 'Facturación', href: '/autoescuela/facturacion',         icon: CreditCard },
+  { label: 'Mi perfil',   href: '/autoescuela/perfil',              icon: Settings },
 ]
 
 export default async function AutoescuelaLayout({ children }: { children: React.ReactNode }) {
