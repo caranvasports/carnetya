@@ -237,6 +237,14 @@ export default function AutoescuelaLeadsPage() {
                         <Phone className="w-4 h-4" />
                         Llamar ahora
                       </a>
+                      <a
+                        href={`mailto:${lead.email}`}
+                        onClick={() => cambiarEstado(a.id, 'contactado')}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 text-sm transition-colors"
+                      >
+                        <Mail className="w-4 h-4" />
+                        Enviar email
+                      </a>
                       <select
                         value={a.estado}
                         onChange={(e) => cambiarEstado(a.id, e.target.value)}
