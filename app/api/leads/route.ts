@@ -1,85 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import nodemailer from 'nodemailer'
 import { createServiceClient } from '@/lib/supabase/server'
 import { ensureLeadsTable } from '@/lib/db-setup'
 import { saveBlobLead } from '@/lib/blob-leads'
 import { getCiudadBySlug } from '@/data/cities'
-
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'carnetyainfo@gmail.com'
-
-function buildEmailHtml(data: {
-  nombre: string; telefono: string; email: string; ciudad: string
-  urgencia: string; edad?: number; tiene_experiencia?: boolean; utm_source?: string
-}) {
-  const urgenciaLabel = data.urgencia === 'rapido' ? '🔴 URGENTE' : '🟡 Normal'
-  return `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-      <div style="background:#1d4ed8;padding:24px;border-radius:12px 12px 0 0">
-        <h1 style="color:white;margin:0;font-size:20px">🚗 Nuevo lead — CarnetYa</h1>
-      </div>
-      <div style="background:#f8fafc;padding:24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0">
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:8px 0;color:#64748b;font-size:14px;width:120px">Nombre</td><td style="padding:8px 0;font-weight:600">${data.nombre}</td></tr>
-          <tr><td style="padding:8px 0;color:#64748b;font-size:14px">Teléfono</td><td style="padding:8px 0;font-weight:600"><a href="tel:${data.telefono}" style="color:#1d4ed8">${data.telefono}</a></td></tr>
-          <tr><td style="padding:8px 0;color:#64748b;font-size:14px">Email</td><td style="padding:8px 0;font-weight:600"><a href="mailto:${data.email}" style="color:#1d4ed8">${data.email}</a></td></tr>
-          <tr><td style="padding:8px 0;color:#64748b;font-size:14px">Ciudad</td><td style="padding:8px 0;font-weight:600">${data.ciudad}</td></tr>
-          <tr><td style="padding:8px 0;color:#64748b;font-size:14px">Urgencia</td><td style="padding:8px 0;font-weight:600">${urgenciaLabel}</td></tr>
-          ${data.edad ? `<tr><td style="padding:8px 0;color:#64748b;font-size:14px">Edad</td><td style="padding:8px 0">${data.edad} años</td></tr>` : ''}
-          ${data.tiene_experiencia ? `<tr><td style="padding:8px 0;color:#64748b;font-size:14px">Exp. previa</td><td style="padding:8px 0">Sí</td></tr>` : ''}
-          ${data.utm_source ? `<tr><td style="padding:8px 0;color:#64748b;font-size:14px">Fuente</td><td style="padding:8px 0">${data.utm_source}</td></tr>` : ''}
-        </table>
-        <div style="margin-top:20px">
-          <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://carnetya.es'}/admin/leads"
-             style="background:#1d4ed8;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">
-            Ver en el panel admin →
-          </a>
-        </div>
-      </div>
-      <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:16px">CarnetYa · carnetya.es</p>
-    </div>
-  `
-}
-
-async function sendEmail(subject: string, html: string) {
-  // Gmail SMTP via App Password (GMAIL_APP_PASSWORD en Vercel env vars)
-  if (process.env.GMAIL_APP_PASSWORD) {
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: ADMIN_EMAIL,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    })
-    await transporter.sendMail({
-      from: `CarnetYa <${ADMIN_EMAIL}>`,
-      to: ADMIN_EMAIL,
-      subject,
-      html,
-    })
-    console.log('[CarnetYa] Email enviado via Gmail a', ADMIN_EMAIL)
-    return
-  }
-  // Fallback: Resend (solo si hay key real, no placeholder)
-  const resendKey = process.env.RESEND_API_KEY
-  if (resendKey && !resendKey.startsWith('re_placeholder')) {
-    const { Resend } = await import('resend')
-    const resend = new Resend(resendKey)
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM ?? `CarnetYa <noreply@carnetya.es>`,
-      to: ADMIN_EMAIL,
-      subject,
-      html,
-    })
-    console.log('[CarnetYa] Email enviado via Resend a', ADMIN_EMAIL)
-    return
-  }
-  // Sin credenciales configuradas — log completo en Vercel/servidor
-  console.warn('[CarnetYa] ⚠️  EMAIL NO ENVIADO — Añade GMAIL_APP_PASSWORD en Vercel env vars')
-  console.log('[CarnetYa] Datos del lead:', subject)
-}
+import { sendAdminNewLeadEmail, sendAutoescuelaNewLeadEmail } from '@/lib/email'
 
 const schema = z.object({
   nombre:            z.string().min(2).max(100),
@@ -110,12 +35,13 @@ async function assignLeadToAutoescuelas(
   supabase: ReturnType<typeof createServiceClient>,
   leadId: string,
   ciudadId: string | null,
+  leadData: { ciudad: string; urgencia: string; tipo_carnet?: string },
 ) {
   if (!ciudadId) return
 
   const { data: autoescuelas, error } = await supabase
     .from('autoescuelas')
-    .select('id, plan')
+    .select('id, plan, email, nombre')
     .eq('ciudad_id', ciudadId)
     .eq('activa', true)
     .order('destacada', { ascending: false })
@@ -123,13 +49,24 @@ async function assignLeadToAutoescuelas(
 
   if (error || !autoescuelas?.length) return
 
-  const assignments = autoescuelas.map((autoescuela: { id: string; plan?: string | null }) => ({
+  const assignments = autoescuelas.map((a: { id: string; plan?: string | null }) => ({
     lead_id: leadId,
-    autoescuela_id: autoescuela.id,
-    precio_lead: autoescuela.plan === 'premium' ? 4 : autoescuela.plan === 'basic' ? 8 : 0,
+    autoescuela_id: a.id,
+    precio_lead: a.plan === 'premium' ? 4 : a.plan === 'basic' ? 8 : 0,
   }))
 
   await supabase.from('lead_assignments').upsert(assignments, { onConflict: 'lead_id,autoescuela_id' })
+
+  // Notify each registered (non-free) autoescuela by email
+  for (const a of autoescuelas as Array<{ id: string; plan?: string | null; email?: string; nombre?: string }>) {
+    if (a.plan && a.plan !== 'free' && a.email) {
+      sendAutoescuelaNewLeadEmail(
+        { email: a.email, nombre: a.nombre ?? '', ciudad: leadData.ciudad },
+        { ciudad: leadData.ciudad, urgencia: leadData.urgencia, tipo_carnet: leadData.tipo_carnet },
+        leadId,
+      ).catch(err => console.error('[CarnetYa] Error enviando email a autoescuela:', err))
+    }
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -200,7 +137,11 @@ export async function POST(req: NextRequest) {
 
     if (lead) {
       leadId = lead.id
-      await assignLeadToAutoescuelas(supabase, lead.id, ciudadId)
+      await assignLeadToAutoescuelas(supabase, lead.id, ciudadId, {
+        ciudad: ciudadSlug,
+        urgencia: rest.urgencia,
+        tipo_carnet,
+      })
     }
   } catch (dbErr) {
     dbError = dbErr
@@ -232,14 +173,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Enviar email — siempre intentamos (no bloqueamos la respuesta si falla)
-  try {
-    const subject = `[CarnetYa] Nuevo lead — ${parsed.data.nombre} (${parsed.data.ciudad})`
-    const html = buildEmailHtml(parsed.data)
-    await sendEmail(subject, html)
-  } catch (emailErr) {
-    console.error('[CarnetYa] Error enviando email:', emailErr)
-  }
+  // Enviar email al admin — no bloqueamos la respuesta si falla
+  sendAdminNewLeadEmail({
+    nombre: parsed.data.nombre,
+    telefono: parsed.data.telefono,
+    email: parsed.data.email,
+    ciudad: parsed.data.ciudad,
+    urgencia: parsed.data.urgencia,
+    tipo_carnet: parsed.data.tipo_carnet,
+    utm_source: parsed.data.utm_source,
+  }).catch(err => console.error('[CarnetYa] Error enviando email admin:', err))
 
   if (!leadId) {
     return NextResponse.json(
@@ -250,6 +193,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ success: true, leadId }, { status: 201 })
 }
-
-
 
