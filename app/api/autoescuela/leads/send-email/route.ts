@@ -60,14 +60,15 @@ async function sendConfirmationToAutoescuela(
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createServiceClient()
   let assignmentId: string | undefined
   let autoescuelaId: string | undefined
   let leadId: string | undefined
   let subject = ''
   let html = ''
+  let supabase: ReturnType<typeof createServiceClient>
 
   try {
+    supabase = createServiceClient()
     const body = await req.json()
     assignmentId = body.assignmentId
     const customMessage: string | undefined = body.message
