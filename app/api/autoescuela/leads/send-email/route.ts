@@ -53,7 +53,7 @@ async function sendConfirmationToAutoescuela(
   const info = await transporter.sendMail({
     from: `CarnetYa <${ADMIN_EMAIL}>`,
     to: autoescuelaEmail,
-    subject: `\u2705 Email enviado a ${leadNombre} — CarnetYa`,
+    subject: `Confirmación: email enviado a ${leadNombre} — CarnetYa`,
     html: confirmHtml,
   })
   console.log('[send-email] confirmation sent to ae:', info.messageId)
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'assignmentId requerido' }, { status: 400 })
     }
 
-    // Fetch assignment with lead and autoescuela separately to avoid join type issues
+    // Fetch assignment
     const { data: assignment, error: aErr } = await supabase
       .from('lead_assignments')
       .select('id, autoescuela_id, lead_id')
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
     const [{ data: lead, error: lErr }, { data: autoescuela, error: aeErr }] = await Promise.all([
       supabase.from('leads').select('nombre, email, ciudad_id').eq('id', leadId).single(),
-      supabase.from('autoescuelas').select('nombre, plan').eq('id', autoescuelaId).single(),
+      supabase.from('autoescuelas').select('nombre, plan, email').eq('id', autoescuelaId).single(),
     ])
 
     if (lErr || !lead) {
@@ -102,7 +102,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Autoescuela no encontrada' }, { status: 404 })
     }
 
-    // Fetch ciudad name and autoescuela email
+    const nombreAutoescuela = autoescuela.nombre as string
+    const autoescuelaEmail = autoescuela.email as string | undefined
+
+    // Block free-plan schools
+    if ((autoescuela.plan as string) === 'free') {
+      return NextResponse.json({ error: 'Plan gratuito no incluye envío de emails' }, { status: 403 })
+    }
+
+    // Fetch ciudad name
     let ciudadNombre = ''
     if (lead.ciudad_id) {
       const { data: ciudad } = await supabase
@@ -113,30 +121,14 @@ export async function POST(req: NextRequest) {
       ciudadNombre = ciudad?.nombre ?? ''
     }
 
-    // Get autoescuela email for CC
-    const { data: aeExtra } = await supabase
-      .from('autoescuelas')
-      .select('email')
-      .eq('id', autoescuelaId)
-      .single()
-    const autoescuelaEmail = aeExtra?.email as string | undefined
+    // Build email content
+    const defaultMessage = customMessage ??
+      `Hola ${lead.nombre},\n\nSoy de ${nombreAutoescuela}${ciudadNombre ? `, tu autoescuela en ${ciudadNombre}` : ''}. Hemos visto que estás interesado/a en sacarte el carnet de conducir y nos gustaría ayudarte.\n\nContacta con nosotros para más información o pide cita directamente.\n\n¡Te esperamos!`
 
-    const nombreAlumno = (lead.nombre as string)?.split(' ')[0] ?? 'alumno'
-    const nombreAutoescuela = autoescuela.nombre as string
-
-    const bodyHtml = customMessage?.trim()
-      ? customMessage.replace(/\n/g, '<br>')
-      : `Hola ${nombreAlumno},<br><br>
-Soy de <strong>${nombreAutoescuela}</strong>${ciudadNombre ? `, tu autoescuela en ${ciudadNombre}` : ''}.<br><br>
-Hemos recibido tu solicitud de información sobre el carnet de conducir y nos encantaría ayudarte a conseguirlo lo antes posible.<br><br>
-¿Cuándo te vendría bien que te llamemos para contarte todo sin compromiso?<br><br>
-Un saludo,<br>
-<strong>${nombreAutoescuela}</strong>`
-
-    subject = `Tu solicitud de carnet${ciudadNombre ? ` en ${ciudadNombre}` : ''} — ${nombreAutoescuela}`
+    const bodyHtml = defaultMessage.replace(/\n/g, '<br>')
+    subject = `${nombreAutoescuela} te escribe — CarnetYa`
     html = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<html><head><meta charset="utf-8"></head>
 <body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:0;color:#1a1a1a;background:#f3f4f6;">
   <div style="background:#1B4FFF;padding:24px 28px;">
     <h2 style="color:#fff;margin:0;font-size:20px;letter-spacing:-0.3px;">${nombreAutoescuela}</h2>
@@ -156,7 +148,7 @@ Un saludo,<br>
     // 1. Send email to the lead
     const result = await sendLeadEmail(lead.email as string, subject, html)
 
-    // 2. Send separate confirmation to the autoescuela (so they clearly see it in their inbox)
+    // 2. Send separate confirmation to the autoescuela so they see it in their inbox
     if (autoescuelaEmail) {
       sendConfirmationToAutoescuela(
         autoescuelaEmail,
@@ -188,7 +180,6 @@ Un saludo,<br>
 
   } catch (err) {
     console.error('[send-email]', err)
-    // Try to log the error if we have enough context
     if (autoescuelaId && leadId) {
       await supabase.from('contact_log').insert({
         autoescuela_id: autoescuelaId,
