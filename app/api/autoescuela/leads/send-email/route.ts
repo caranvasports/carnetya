@@ -180,6 +180,8 @@ export async function POST(req: NextRequest) {
 
   } catch (err) {
     console.error('[send-email]', err)
+    const errMsg = err instanceof Error ? err.message : String(err)
+    const errStack = err instanceof Error ? err.stack : undefined
     if (autoescuelaId && leadId) {
       await supabase.from('contact_log').insert({
         autoescuela_id: autoescuelaId,
@@ -188,9 +190,10 @@ export async function POST(req: NextRequest) {
         tipo: 'email',
         asunto: subject || 'error',
         enviado_ok: false,
-        error_msg: err instanceof Error ? err.message : 'Error desconocido',
+        error_msg: errMsg,
       }).catch(() => null)
     }
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Error interno' }, { status: 500 })
+    // Temporarily return 200 with error details for debugging
+    return NextResponse.json({ debug_error: errMsg, debug_stack: errStack, autoescuelaId, leadId }, { status: 200 })
   }
 }
