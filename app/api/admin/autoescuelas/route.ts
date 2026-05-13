@@ -236,18 +236,34 @@ export async function PUT(req: NextRequest) {
 
   await ensureLeadsTable()
   const supabase = createServiceClient()
-  const { data: autoescuela, error: autoescuelaError } = await supabase
-    .from('autoescuelas')
-    .select('id, nombre, email, contacto_nombre, captacion_estado, ciudad:ciudades(nombre, slug)')
-    .eq('id', id)
-    .single()
 
-  if (autoescuelaError || !autoescuela?.email) {
-    return NextResponse.json({ error: 'Autoescuela sin email' }, { status: 400 })
+  // First try selecting with captacion_estado; fall back without it if column doesn't exist yet
+  let autoescuela: any = null
+  let currentEstado = 'nueva'
+  {
+    const { data, error } = await supabase
+      .from('autoescuelas')
+      .select('id, nombre, email, contacto_nombre, captacion_estado, ciudad:ciudades(nombre, slug)')
+      .eq('id', id)
+      .single()
+
+    if (error?.code === '42703') {
+      // captacion_estado column missing — retry without it
+      const { data: d2, error: e2 } = await supabase
+        .from('autoescuelas')
+        .select('id, nombre, email, contacto_nombre, ciudad:ciudades(nombre, slug)')
+        .eq('id', id)
+        .single()
+      if (e2 || !d2?.email) return NextResponse.json({ error: 'Autoescuela sin email' }, { status: 400 })
+      autoescuela = d2
+    } else {
+      if (error || !data?.email) return NextResponse.json({ error: 'Autoescuela sin email' }, { status: 400 })
+      autoescuela = data
+      currentEstado = data.captacion_estado ?? 'nueva'
+    }
   }
 
   // Infer template from current state if not explicitly provided
-  const currentEstado = (autoescuela as any).captacion_estado ?? 'nueva'
   const templateId = customTemplateId ?? (
     currentEstado === 'registrada' ? 'nueva_autoescuela' :
     (currentEstado === 'email_enviado' || currentEstado === 'seguimiento') ? 'autoescuela_recordatorio' :
@@ -281,12 +297,13 @@ export async function PUT(req: NextRequest) {
   const html = renderTemplate(tpl.html, vars)
   const result = await sendEmail(autoescuela.email, subject, html)
 
-  // Advance state based on which template was sent
+  // Advance state based on which template was sent (only if captacion columns exist)
   const nextEstado = !result.sent ? 'email_pendiente_config' :
     templateId === 'autoescuela_invite' ? 'email_enviado' :
     templateId === 'autoescuela_recordatorio' ? 'seguimiento' :
     currentEstado
 
+  // Silently ignore update errors (columns may not exist yet)
   await supabase
     .from('autoescuelas')
     .update({
@@ -295,6 +312,8 @@ export async function PUT(req: NextRequest) {
       captacion_email_sent_at: result.sent ? new Date().toISOString() : null,
     })
     .eq('id', id)
+    .then(() => null)
+    .catch(() => null)
 
   return NextResponse.json({ ok: true, sent: result.sent, provider: result.provider })
 }
