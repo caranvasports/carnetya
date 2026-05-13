@@ -4,6 +4,28 @@ import { useEffect, useMemo, useState } from 'react'
 import { Building2, CheckCircle, Mail, Plus, RefreshCw, Search, Send, XCircle } from 'lucide-react'
 import { CIUDADES } from '@/data/cities'
 
+type EstadoConfig = {
+  value: string
+  label: string
+  emailTemplate: string | null
+  emailLabel: string | null
+  btnClass: string
+}
+
+const ESTADOS_CONFIG: EstadoConfig[] = [
+  { value: 'nueva',         label: 'Nueva sin registro',  emailTemplate: 'autoescuela_invite',       emailLabel: 'Enviar invitación',   btnClass: 'bg-blue-600 hover:bg-blue-500 text-white' },
+  { value: 'email_enviado', label: 'Email enviado',        emailTemplate: 'autoescuela_recordatorio', emailLabel: 'Enviar recordatorio', btnClass: 'bg-amber-600 hover:bg-amber-500 text-white' },
+  { value: 'seguimiento',   label: 'En seguimiento',       emailTemplate: 'autoescuela_recordatorio', emailLabel: 'Enviar recordatorio', btnClass: 'bg-amber-600 hover:bg-amber-500 text-white' },
+  { value: 'registrada',    label: 'Registrada',           emailTemplate: 'nueva_autoescuela',        emailLabel: 'Enviar bienvenida',   btnClass: 'bg-green-700 hover:bg-green-600 text-white' },
+  { value: 'descartada',    label: 'Descartada',           emailTemplate: null,                       emailLabel: null,                  btnClass: '' },
+]
+
+const FALLBACK_ESTADO: EstadoConfig = { value: 'pendiente', label: 'Pendiente', emailTemplate: 'autoescuela_invite', emailLabel: 'Enviar invitación', btnClass: 'bg-blue-600 hover:bg-blue-500 text-white' }
+
+function getEstadoConfig(estado: string | undefined): EstadoConfig {
+  return ESTADOS_CONFIG.find((e) => e.value === (estado ?? 'nueva')) ?? FALLBACK_ESTADO
+}
+
 type AutoescuelaAdmin = {
   id: string
   nombre: string
@@ -74,12 +96,21 @@ export default function AdminAutoescuelasClient({ initialAutoescuelas }: { initi
     })
   }
 
-  async function sendInvite(autoescuela: AutoescuelaAdmin) {
+  async function changeEstado(id: string, estado: string) {
+    setAutoescuelas((prev) => prev.map((a) => a.id === id ? { ...a, captacion_estado: estado } : a))
+    await fetch('/api/admin/autoescuelas', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, captacion_estado: estado }),
+    })
+  }
+
+  async function sendEmailToAe(autoescuela: AutoescuelaAdmin, templateId: string) {
     setSendingId(autoescuela.id)
     const res = await fetch('/api/admin/autoescuelas', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: autoescuela.id }),
+      body: JSON.stringify({ id: autoescuela.id, templateId }),
     })
     setSendingId(null)
     if (res.ok) load()
@@ -198,34 +229,53 @@ export default function AdminAutoescuelasClient({ initialAutoescuelas }: { initi
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
-            {filtered.map((ae) => (
-              <tr key={ae.id} className="bg-gray-900 hover:bg-gray-800/60 transition-colors">
-                <td className="px-5 py-3.5">
-                  <div className="font-medium text-white flex items-center gap-2"><Building2 className="w-4 h-4 text-gray-500" />{ae.nombre}</div>
-                  <div className="text-gray-500 text-xs">{ae.slug}</div>
-                </td>
-                <td className="px-5 py-3.5 text-gray-300">{ae.email ?? '—'}</td>
-                <td className="px-5 py-3.5 text-gray-400 hidden md:table-cell">{ae.ciudad?.nombre ?? '—'}</td>
-                <td className="px-5 py-3.5 text-center">
-                  <button onClick={() => toggleMarcada(ae)} className="inline-flex justify-center">
-                    {ae.captacion_marcada ? <CheckCircle className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-gray-600" />}
-                  </button>
-                </td>
-                <td className="px-5 py-3.5 text-center">
-                  {ae.registered ? <span className="text-green-400 text-xs font-semibold">Registrada</span> : <span className="text-amber-400 text-xs">No registrada</span>}
-                </td>
-                <td className="px-5 py-3.5 text-right text-white font-bold">{ae.leads_count ?? 0}</td>
-                <td className="px-5 py-3.5">
-                  <span className="text-xs bg-gray-800 text-gray-300 rounded-full px-2.5 py-1">{ae.captacion_estado ?? 'pendiente'}</span>
-                </td>
-                <td className="px-5 py-3.5 text-right">
-                  <button disabled={!ae.email || sendingId === ae.id} onClick={() => sendInvite(ae)} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold disabled:opacity-40">
-                    {sendingId === ae.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    Enviar mail
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {filtered.map((ae) => {
+              const estadoConfig = getEstadoConfig(ae.captacion_estado)
+              return (
+                <tr key={ae.id} className="bg-gray-900 hover:bg-gray-800/60 transition-colors">
+                  <td className="px-5 py-3.5">
+                    <div className="font-medium text-white flex items-center gap-2"><Building2 className="w-4 h-4 text-gray-500" />{ae.nombre}</div>
+                    <div className="text-gray-500 text-xs">{ae.slug}</div>
+                  </td>
+                  <td className="px-5 py-3.5 text-gray-300">{ae.email ?? '—'}</td>
+                  <td className="px-5 py-3.5 text-gray-400 hidden md:table-cell">{ae.ciudad?.nombre ?? '—'}</td>
+                  <td className="px-5 py-3.5 text-center">
+                    <button onClick={() => toggleMarcada(ae)} className="inline-flex justify-center">
+                      {ae.captacion_marcada ? <CheckCircle className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-gray-600" />}
+                    </button>
+                  </td>
+                  <td className="px-5 py-3.5 text-center">
+                    {ae.registered ? <span className="text-green-400 text-xs font-semibold">Registrada</span> : <span className="text-amber-400 text-xs">No registrada</span>}
+                  </td>
+                  <td className="px-5 py-3.5 text-right text-white font-bold">{ae.leads_count ?? 0}</td>
+                  <td className="px-5 py-3.5">
+                    <select
+                      value={ESTADOS_CONFIG.find((e) => e.value === ae.captacion_estado) ? ae.captacion_estado ?? 'nueva' : 'nueva'}
+                      onChange={(e) => changeEstado(ae.id, e.target.value)}
+                      className="text-xs bg-gray-800 text-gray-300 rounded-lg px-2 py-1 border border-gray-700 cursor-pointer focus:outline-none focus:border-blue-500"
+                    >
+                      {ESTADOS_CONFIG.map((e) => (
+                        <option key={e.value} value={e.value}>{e.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    {estadoConfig.emailTemplate ? (
+                      <button
+                        disabled={!ae.email || sendingId === ae.id}
+                        onClick={() => sendEmailToAe(ae, estadoConfig.emailTemplate!)}
+                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-40 ${estadoConfig.btnClass}`}
+                      >
+                        {sendingId === ae.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        {estadoConfig.emailLabel}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-600">—</span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

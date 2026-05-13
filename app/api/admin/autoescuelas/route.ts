@@ -231,14 +231,14 @@ export async function PUT(req: NextRequest) {
   const session = getAdminSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { id } = await req.json()
+  const { id, templateId: customTemplateId } = await req.json()
   if (!id) return NextResponse.json({ error: 'Falta id' }, { status: 400 })
 
   await ensureLeadsTable()
   const supabase = createServiceClient()
   const { data: autoescuela, error: autoescuelaError } = await supabase
     .from('autoescuelas')
-    .select('id, nombre, email, contacto_nombre, ciudad:ciudades(nombre, slug)')
+    .select('id, nombre, email, contacto_nombre, captacion_estado, ciudad:ciudades(nombre, slug)')
     .eq('id', id)
     .single()
 
@@ -246,32 +246,52 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Autoescuela sin email' }, { status: 400 })
   }
 
-  const { data: template, error: templateError } = await supabase
+  // Infer template from current state if not explicitly provided
+  const currentEstado = (autoescuela as any).captacion_estado ?? 'nueva'
+  const templateId = customTemplateId ?? (
+    currentEstado === 'registrada' ? 'nueva_autoescuela' :
+    (currentEstado === 'email_enviado' || currentEstado === 'seguimiento') ? 'autoescuela_recordatorio' :
+    'autoescuela_invite'
+  )
+
+  const { data: template } = await supabase
     .from('email_templates')
     .select('*')
-    .eq('id', 'autoescuela_invite')
-    .single()
+    .eq('id', templateId)
+    .maybeSingle()
 
-  if (templateError || !template) return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 500 })
+  // Fallback to autoescuela_invite if requested template doesn't exist
+  let tpl = template
+  if (!tpl) {
+    const { data: fallback } = await supabase.from('email_templates').select('*').eq('id', 'autoescuela_invite').single()
+    tpl = fallback
+  }
+  if (!tpl) return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 500 })
 
   const ciudad = Array.isArray(autoescuela.ciudad) ? autoescuela.ciudad[0] : autoescuela.ciudad
   const registroUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.carnetya.es'}/autoescuela/registro?email=${encodeURIComponent(autoescuela.email)}&autoescuela=${encodeURIComponent(autoescuela.nombre)}`
   const vars = {
     nombre_autoescuela: autoescuela.nombre,
-    contacto_nombre: autoescuela.contacto_nombre,
-    ciudad: ciudad?.nombre ?? 'tu ciudad',
+    contacto_nombre: (autoescuela as any).contacto_nombre,
+    ciudad: (ciudad as any)?.nombre ?? 'tu ciudad',
     registro_url: registroUrl,
   }
 
-  const subject = renderTemplate(template.subject, vars)
-  const html = renderTemplate(template.html, vars)
+  const subject = renderTemplate(tpl.subject, vars)
+  const html = renderTemplate(tpl.html, vars)
   const result = await sendEmail(autoescuela.email, subject, html)
+
+  // Advance state based on which template was sent
+  const nextEstado = !result.sent ? 'email_pendiente_config' :
+    templateId === 'autoescuela_invite' ? 'email_enviado' :
+    templateId === 'autoescuela_recordatorio' ? 'seguimiento' :
+    currentEstado
 
   await supabase
     .from('autoescuelas')
     .update({
       captacion_marcada: true,
-      captacion_estado: result.sent ? 'email_enviado' : 'email_pendiente_config',
+      captacion_estado: nextEstado,
       captacion_email_sent_at: result.sent ? new Date().toISOString() : null,
     })
     .eq('id', id)
