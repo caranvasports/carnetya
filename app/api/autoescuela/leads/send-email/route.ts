@@ -4,26 +4,59 @@ import nodemailer from 'nodemailer'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'carnetyainfo@gmail.com'
 
-async function sendEmailWithCC(to: string, subject: string, html: string, cc?: string) {
+async function createTransporter() {
   const pass = process.env.GMAIL_APP_PASSWORD
-  if (!pass) {
-    console.error('[send-email] GMAIL_APP_PASSWORD not set')
-    return { sent: false }
-  }
-  const transporter = nodemailer.createTransport({
+  if (!pass) throw new Error('GMAIL_APP_PASSWORD no configurado')
+  return nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
     secure: true,
     auth: { user: ADMIN_EMAIL, pass },
   })
-  await transporter.sendMail({
+}
+
+async function sendLeadEmail(to: string, subject: string, html: string) {
+  const transporter = await createTransporter()
+  const info = await transporter.sendMail({
     from: `CarnetYa <${ADMIN_EMAIL}>`,
     to,
-    cc: cc ?? undefined,
     subject,
     html,
   })
+  console.log('[send-email] sent to lead:', info.messageId)
   return { sent: true }
+}
+
+async function sendConfirmationToAutoescuela(
+  autoescuelaEmail: string,
+  leadNombre: string,
+  leadEmail: string,
+  nombreAutoescuela: string,
+) {
+  const transporter = await createTransporter()
+  const confirmHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:0;background:#f3f4f6;">
+  <div style="background:#16a34a;padding:20px 24px;border-radius:8px 8px 0 0;">
+    <h2 style="color:#fff;margin:0;font-size:18px;">&#10003; Email enviado correctamente</h2>
+  </div>
+  <div style="background:#fff;padding:28px 24px;border-radius:0 0 8px 8px;border:1px solid #e5e7eb;border-top:none;">
+    <p style="font-size:14px;color:#374151;margin:0 0 16px;">Tu email de contacto ha sido enviado desde <strong>${nombreAutoescuela}</strong>:</p>
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:14px 16px;margin-bottom:16px;">
+      <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">Destinatario</p>
+      <p style="margin:0;font-size:15px;font-weight:600;color:#111827;">${leadNombre}</p>
+      <p style="margin:2px 0 0;font-size:13px;color:#374151;">${leadEmail}</p>
+    </div>
+    <p style="font-size:13px;color:#6b7280;margin:0;">Gestiona tus leads en <a href="https://carnetya.es/autoescuela/leads" style="color:#1B4FFF;">carnetya.es/autoescuela/leads</a></p>
+  </div>
+</body></html>`
+  const info = await transporter.sendMail({
+    from: `CarnetYa <${ADMIN_EMAIL}>`,
+    to: autoescuelaEmail,
+    subject: `\u2705 Email enviado a ${leadNombre} — CarnetYa`,
+    html: confirmHtml,
+  })
+  console.log('[send-email] confirmation sent to ae:', info.messageId)
 }
 
 export async function POST(req: NextRequest) {
@@ -120,10 +153,20 @@ Un saludo,<br>
 </body>
 </html>`
 
-    // Send the email (with CC to autoescuela so they get confirmation)
-    const result = await sendEmailWithCC(lead.email as string, subject, html, autoescuelaEmail)
+    // 1. Send email to the lead
+    const result = await sendLeadEmail(lead.email as string, subject, html)
 
-    // Log to contact_log
+    // 2. Send separate confirmation to the autoescuela (so they clearly see it in their inbox)
+    if (autoescuelaEmail) {
+      sendConfirmationToAutoescuela(
+        autoescuelaEmail,
+        lead.nombre as string,
+        lead.email as string,
+        nombreAutoescuela,
+      ).catch(err => console.error('[send-email] confirmation failed:', err))
+    }
+
+    // Log to contact_log (ignore if table doesn't exist yet)
     await supabase.from('contact_log').insert({
       autoescuela_id: autoescuelaId,
       lead_id: leadId,
@@ -132,12 +175,8 @@ Un saludo,<br>
       asunto: subject,
       mensaje_html: html,
       enviado_ok: result.sent,
-      error_msg: result.sent ? null : 'No email provider configured',
-    })
-
-    if (!result.sent) {
-      return NextResponse.json({ error: 'No se pudo enviar: falta configuración de email' }, { status: 500 })
-    }
+      error_msg: null,
+    }).catch(() => null)
 
     // Mark assignment as contacted
     await supabase
