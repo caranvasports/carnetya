@@ -63,28 +63,30 @@ export async function POST(req: NextRequest) {
       '<a href="https://carnetya.es" style="color:#1B4FFF;">CarnetYa.es</a></p>' +
       '</div></body></html>'
 
-    // 1. Send email to the lead (no CC)
-    await sendEmail(leadEmail, subject, leadHtml)
+    // Send both emails in parallel and await both (Vercel kills fire-and-forget)
+    const sends: Promise<unknown>[] = [sendEmail(leadEmail, subject, leadHtml)]
 
-    // 2. Send a CarnetYa confirmation to the autoescuela (clearly from CarnetYa TO the autoescuela)
     if (aeEmail) {
-      const confirmSubject = 'Confirmacion: contactaste a ' + leadNombre + ' - CarnetYa'
+      const confirmSubject = '[CarnetYa] Has contactado a ' + leadNombre
       const confirmHtml =
         '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
         '<body style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f3f4f6;">' +
         '<div style="background:#16a34a;padding:20px 24px;border-radius:8px 8px 0 0;">' +
         '<h2 style="color:#fff;margin:0;font-size:18px;">&#10003; Email enviado correctamente</h2>' +
         '</div><div style="background:#fff;padding:28px 24px;border-radius:0 0 8px 8px;">' +
-        '<p style="font-size:14px;color:#374151;margin:0 0 16px;">CarnetYa confirma que <strong>' + aeName + '</strong> ha contactado a:</p>' +
-        '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:14px 16px;margin-bottom:16px;">' +
+        '<p style="font-size:14px;color:#374151;margin:0 0 16px;">Hola <strong>' + aeName + '</strong>,</p>' +
+        '<p style="font-size:14px;color:#374151;margin:0 0 16px;">CarnetYa confirma que tu email de contacto fue enviado correctamente a:</p>' +
+        '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:14px 16px;margin-bottom:20px;">' +
         '<p style="margin:0;font-size:15px;font-weight:600;color:#111827;">' + leadNombre + '</p>' +
         '<p style="margin:4px 0 0;font-size:13px;color:#374151;">' + leadEmail + '</p>' +
+        (ciudadNombre ? '<p style="margin:4px 0 0;font-size:13px;color:#6b7280;">' + ciudadNombre + '</p>' : '') +
         '</div>' +
-        '<p style="font-size:13px;color:#6b7280;margin:0;">Gestiona tus leads en ' +
-        '<a href="https://carnetya.es/autoescuela/leads" style="color:#1B4FFF;">carnetya.es/autoescuela/leads</a></p>' +
+        '<a href="https://carnetya.es/autoescuela/leads" style="display:inline-block;background:#1B4FFF;color:#fff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Ver mis leads</a>' +
         '</div></body></html>'
-      sendEmail(aeEmail, confirmSubject, confirmHtml).catch(err => console.error('[send-email] confirm failed:', err))
+      sends.push(sendEmail(aeEmail, confirmSubject, confirmHtml))
     }
+
+    await Promise.all(sends)
 
     // Update assignment estado
     await supabase
