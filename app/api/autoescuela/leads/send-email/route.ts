@@ -60,7 +60,21 @@ async function sendConfirmationToAutoescuela(
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createServiceClient()
+  try {
+    const body = await req.json()
+    const assignmentId: string | undefined = body.assignmentId
+
+    if (!assignmentId) {
+      return NextResponse.json({ error: 'assignmentId requerido' }, { status: 400 })
+    }
+
+    // Debug: return immediately without SMTP to confirm routing works
+    return NextResponse.json({ debug: 'reached handler', assignmentId }, { status: 200 })
+
+  } catch (err) {
+    return NextResponse.json({ caught: err instanceof Error ? err.message : String(err) }, { status: 200 })
+  }
+}
   let assignmentId: string | undefined
   let autoescuelaId: string | undefined
   let leadId: string | undefined
